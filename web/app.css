@@ -1,0 +1,94 @@
+/*
+ * Aggiunte all'interfaccia del mockup.
+ *
+ * mockup.css porta i token e le classi del mockup e non va toccato: qui
+ * stanno solo le poche regole che il mockup non copriva, perche' riguardano
+ * schermate nuove (attrezzature per le vibrazioni) o comportamenti che nel
+ * mockup erano solo disegnati.
+ */
+
+html, body { height: 100%; overflow: hidden; }
+body { padding: 0; }
+
+/* la finestra e' senza cornice: la .win riempie tutto e il bordo lo da' Qt */
+.win { width: 100%; height: 100vh; max-width: none; border-radius: 0; box-shadow: none; }
+.shell { height: calc(100vh - 38px); }
+
+.tbar { user-select: none; -webkit-app-region: drag; }
+.dot3 { cursor: pointer; }
+
+/* celle modificabili delle griglie: stesso aspetto degli input del mockup */
+.cella-edit {
+  width: 100%; background: transparent; border: 1px solid transparent;
+  border-radius: 4px; padding: 3px 5px; color: var(--color-text);
+  font: 12px ui-monospace, Menlo, monospace;
+}
+.cella-edit:hover { border-color: var(--color-divider); }
+.cella-edit:focus {
+  outline: none; border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+.cella-edit[readonly] { color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.cella-edit[readonly]:hover { border-color: transparent; }
+
+.riga-sforata { background: color-mix(in srgb, #febc2e 12%, transparent); }
+
+.btn-icona {
+  background: transparent; border: 0; color: color-mix(in srgb, var(--color-text) 45%, transparent);
+  cursor: pointer; padding: 2px 5px; border-radius: 4px; font-size: 13px;
+}
+.btn-icona:hover { color: #ff8a80; background: color-mix(in srgb, #b22222 18%, transparent); }
+
+/* contenitore scorrevole delle tabelle: la pagina non scorre mai in orizzontale */
+/* min-width:0 e' necessario dentro grid e flex: senza, il contenitore si
+   allarga fino alla larghezza naturale della tabella invece di far scorrere */
+.scroll-tab { overflow: auto; min-height: 0; min-width: 0; flex: 1;
+              border: 1px solid var(--color-divider); border-radius: 8px; }
+/* le colonne si dimensionano sul contenuto e la tabella scorre dentro il suo
+   contenitore: con nove colonne in mezza schermata, forzarle a stare tutte
+   nella larghezza disponibile rende i testi illeggibili */
+.scroll-tab table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; }
+.scroll-tab td .cella-edit { min-width: 60px; }
+.scroll-tab th {
+  position: sticky; top: 0; z-index: 1; text-align: left; padding: 7px 9px;
+  font: 600 10px var(--font-heading); letter-spacing: .08em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  background: var(--color-neutral-900); border-bottom: 1px solid var(--color-divider);
+  white-space: nowrap;
+}
+.scroll-tab td { padding: 2px 6px; border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent); }
+.scroll-tab tbody tr:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+
+/* finestre di dialogo interne (selettore cartella e file) */
+.velo {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center; z-index: 50;
+}
+.dialogo {
+  width: 520px; max-height: 70vh; display: flex; flex-direction: column; gap: 12px;
+  background: var(--color-bg); border-radius: 12px; padding: 16px;
+  box-shadow: var(--shadow-lg);
+}
+.elenco-voci { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; min-height: 120px; }
+.voce {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: transparent; border: 0; border-radius: 7px; padding: 7px 9px;
+  color: var(--color-text); font: 12.5px var(--font-body); cursor: pointer;
+}
+.voce:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.voce.sel { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
+
+.avviso {
+  display: flex; gap: 9px; align-items: flex-start; padding: 9px 12px;
+  border-radius: 8px; font-size: 12px;
+  background: color-mix(in srgb, #febc2e 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #febc2e 35%, transparent);
+}
+.avviso.errore {
+  background: color-mix(in srgb, #b22222 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #b22222 45%, transparent);
+}
+.avviso.ok {
+  background: color-mix(in srgb, #32cd32 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #32cd32 35%, transparent);
+}

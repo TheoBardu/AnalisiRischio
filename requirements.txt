@@ -1,0 +1,17 @@
+# Interfaccia
+PyQt5>=5.15
+PyQtWebEngine>=5.15
+
+# Lettura e scrittura dei fogli di calcolo
+pandas>=2.0
+openpyxl>=3.1
+numpy>=1.24
+
+# Relazione Word (serviranno quando verra' implementato relazione/generatore.py)
+python-docx>=1.1
+docxtpl>=0.17
+
+# Non installabili con pip:
+#   LibreOffice  - comando 'soffice' nel PATH, solo per l'export dei PDF
+#   VRR_analisiDati e VRV_analisiDati - cartelle sorelle di questo progetto,
+#   indicate in ~/.analisirischio/config.json

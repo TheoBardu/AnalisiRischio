@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Anteprima - Analisi Valutazione Rischio</title>
+<link rel="stylesheet" href="mockup.css">
+<!-- app.css e app.js con marca temporale: durante lo sviluppo il browser
+     tiene in memoria la versione vecchia anche se il server dice no-store -->
+<script>
+  document.write('<link rel="stylesheet" href="app.css?v=' + Date.now() + '">');
+</script>
+</head>
+<body>
+<!--
+  Anteprima dell'interfaccia nel browser, con le risposte registrate da
+  strumenti/genera_fixture.py. Serve solo a controllare la resa grafica: qui
+  il ponte e' finto e non tocca nessun file.
+-->
+<div class="win">
+  <div class="tbar" id="tbar">
+    <span class="dot3" id="btn-chiudi" style="background:#ff5f57"></span>
+    <span class="dot3" id="btn-riduci" style="background:#febc2e"></span>
+    <span class="dot3" id="btn-ingrandisci" style="background:#28c840"></span>
+    <span style="margin-left:8px;color:color-mix(in srgb,var(--color-text) 70%,transparent)">Analisi Valutazione Rischio</span>
+    <span style="margin-left:auto;font-size:11px;color:var(--color-accent)" id="stato-titolo"></span>
+  </div>
+  <div class="shell">
+    <div class="side" id="side"></div>
+    <div class="main" id="main"></div>
+  </div>
+</div>
+<div id="modale"></div>
+
+<script>
+/* Ponte finto: risponde con la fixture, ignora i comandi di finestra. */
+window.__ponteFinto = {
+  chiama(azione, payload, callback) {
+    const risposta = window.__fixture[azione];
+    callback(JSON.stringify(risposta === undefined ? { ok: true } : risposta));
+  },
+  evento: { connect() {} },
+  chiudi() {}, riduci() {}, ingrandisci() {},
+  inizia_trascinamento() {}, trascina() {}, fine_trascinamento() {},
+};
+window.qt = { webChannelTransport: {} };
+window.QWebChannel = function (trasporto, pronto) {
+  pronto({ objects: { ponte: window.__ponteFinto } });
+};
+</script>
+<script src="fixture.js" onerror="document.body.innerHTML =
+  '<p style=&quot;font:14px sans-serif;color:#e9e9ed;padding:24px&quot;>' +
+  'fixture.js assente. Generala con:<br><br>' +
+  '<code>python strumenti/genera_fixture.py &lt;cartella&gt; web/fixture.json</code><br>' +
+  'e convertila in web/fixture.js come descritto nel README.</p>';"></script>
+<script>document.write('<scr' + 'ipt src="app.js?v=' + Date.now() + '"></scr' + 'ipt>');</script>
+</body>
+</html>
