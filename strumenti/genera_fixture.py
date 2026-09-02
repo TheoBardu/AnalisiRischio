@@ -62,9 +62,14 @@ def main():
             'parametri_vibrazioni': par_vib,
             'recenti': configurazione.progetti_recenti(),
             'campi_relazione': contesto_relazione.CAMPI_GENERALI,
+            'layout_relazione': contesto_relazione.LAYOUT_GENERALI,
             'relazione': generatore.stato('', ''),
             'passi': {m: elenco_passi.passi_di(m)
                       for m in ('rumore', 'vibrazioni', 'combinato')},
+            # misure tipiche della barra del titolo di macOS: nell'applicazione
+            # vera le misura app.py sulla finestra, qui servono solo perche'
+            # l'anteprima si veda come si vedra' davvero
+            'finestra': {'altezza_barra': 28, 'spazio_pallini': 75},
         },
         'scansiona': scansione,
         'leggi_schede': lettura,

@@ -20,8 +20,9 @@ import os
 import sys
 import traceback
 
-from PyQt5.QtCore import (QFile, QIODevice, QObject, QPoint, Qt, QUrl,
+from PyQt5.QtCore import (QEvent, QFile, QIODevice, QObject, QRect, Qt, QUrl,
                           pyqtSignal, pyqtSlot)
+from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWebEngineWidgets import (QWebEnginePage, QWebEngineProfile,
                                       QWebEngineScript, QWebEngineSettings,
@@ -39,6 +40,11 @@ from runner import passi as elenco_passi
 
 LARGHEZZA = 1240
 ALTEZZA = 754        # 38 della barra + 716 della shell, come nel mockup
+LARGHEZZA_MINIMA = 900
+ALTEZZA_MINIMA = 560
+
+# margine fra i pallini di macOS e il testo della barra
+MARGINE_PALLINI = 14
 
 
 class Pagina(QWebEnginePage):
@@ -65,7 +71,6 @@ class Ponte(QObject):
         self.finestra = finestra
         self.esecuzione = esecuzione.Esecuzione(self._inoltra_evento)
         self.scansione = {}
-        self._trascinamento = None
 
     # ------------------------------------------------------------------
     def _inoltra_evento(self, evento):
@@ -74,6 +79,11 @@ class Ponte(QObject):
             self.evento.emit(json.dumps(evento, ensure_ascii=False, default=str))
         except (TypeError, ValueError):
             pass
+
+    # ------------------------------------------------------------------
+    def annuncia_finestra(self, misure):
+        """Comunica alla pagina le misure della barra del titolo."""
+        self._inoltra_evento(dict(misure, tipo='finestra'))
 
     # ------------------------------------------------------------------
     @pyqtSlot(str, str, result=str)
@@ -100,38 +110,10 @@ class Ponte(QObject):
         return json.dumps(risultato, ensure_ascii=False, default=str)
 
     # ---- finestra ----------------------------------------------------
-    @pyqtSlot()
-    def chiudi(self):
-        self.finestra.close()
-
-    @pyqtSlot()
-    def riduci(self):
-        self.finestra.showMinimized()
-
-    @pyqtSlot()
-    def ingrandisci(self):
-        if self.finestra.isMaximized():
-            self.finestra.showNormal()
-        else:
-            self.finestra.showMaximized()
-
-    @pyqtSlot(int, int)
-    def inizia_trascinamento(self, x, y):
-        """La barra del titolo e' disegnata dalla pagina: il trascinamento
-        della finestra senza cornice va gestito qui."""
-        self._trascinamento = QPoint(x, y)
-
-    @pyqtSlot(int, int)
-    def trascina(self, x, y):
-        if self._trascinamento is None:
-            return
-        posizione = self.finestra.pos()
-        self.finestra.move(posizione.x() + x - self._trascinamento.x(),
-                           posizione.y() + y - self._trascinamento.y())
-
-    @pyqtSlot()
-    def fine_trascinamento(self):
-        self._trascinamento = None
+    # Chiusura, riduzione, ingrandimento, trascinamento e ridimensionamento
+    # sono tutti gestiti da macOS: la finestra e' nativa e ha i suoi pulsanti.
+    # Alla pagina servono solo le misure della barra del titolo, per lasciare
+    # spazio ai pallini e per dimensionare la propria fascia scura.
 
     # ---- stato e configurazione --------------------------------------
     def _azione_stato_iniziale(self, _):
@@ -142,10 +124,12 @@ class Ponte(QObject):
             'parametri_vibrazioni': configurazione.parametri_vibrazioni(),
             'recenti': configurazione.progetti_recenti(),
             'cartella_config': configurazione.cartella_config(),
+            'finestra': self.finestra.misure_barra,
             'preset_relazione': configurazione.preset_relazione(),
             'relazione': generatore.stato(
                 configurazione.percorso_modello('modello_relazione_rumore'), ''),
             'campi_relazione': contesto_relazione.CAMPI_GENERALI,
+            'layout_relazione': contesto_relazione.LAYOUT_GENERALI,
             'passi': {m: elenco_passi.passi_di(m)
                       for m in ('rumore', 'vibrazioni', 'combinato')},
         }
@@ -382,14 +366,22 @@ class Ponte(QObject):
 
 
 class Finestra(QMainWindow):
-    """Finestra senza cornice: la barra del titolo la disegna la pagina."""
+    """
+    Finestra nativa con la barra del titolo resa trasparente.
+
+    Restando una finestra normale, ridimensionamento da ogni bordo, angoli
+    arrotondati, ombra e pieno schermo li fa macOS. La barra del titolo viene
+    pero' resa trasparente e il contenuto sale fin sotto di essa, cosi' la
+    fascia scura disegnata dalla pagina arriva in cima e i tre pallini di
+    sistema ci si appoggiano sopra, dove il mockup ne disegnava di finti.
+    """
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Analisi Valutazione Rischio')
-        self.setWindowFlag(Qt.FramelessWindowHint, True)
-        self.setMinimumSize(1000, 640)
-        self.resize(LARGHEZZA, ALTEZZA)
+        self.setMinimumSize(LARGHEZZA_MINIMA, ALTEZZA_MINIMA)
+        self.misure_barra = {'altezza_barra': 0, 'spazio_pallini': 0}
+        self._ripristina_geometria()
 
         profilo = QWebEngineProfile.defaultProfile()
         self._inietta_webchannel(profilo)
@@ -434,7 +426,112 @@ class Finestra(QMainWindow):
         script.setRunsOnSubFrames(False)
         profilo.scripts().insert(script)
 
+    # ------------------------------------------------------------------
+    # Aspetto nativo
+    # ------------------------------------------------------------------
+
+    def applica_aspetto_macos(self):
+        """
+        Rende trasparente la barra del titolo e porta il contenuto sotto di essa.
+
+        Qt non espone queste proprieta' della NSWindow, quindi si passa da
+        pyobjc. Va chiamata dopo show(): prima la finestra di sistema non
+        esiste ancora. Se qualcosa non e' disponibile - altro sistema
+        operativo, pyobjc assente, API cambiata - non si fa nulla e la
+        finestra resta quella nativa normale, con la sua barra del titolo:
+        si perde l'aspetto, non l'uso.
+
+        OUTPUT: le misure aggiornate, con zeri quando lo stile non e' applicato
+        """
+        self.misure_barra = {'altezza_barra': 0, 'spazio_pallini': 0}
+        if sys.platform != 'darwin':
+            return self.misure_barra
+        try:
+            import AppKit
+            import objc
+
+            finestra_ns = objc.objc_object(c_void_p=int(self.winId())).window()
+            finestra_ns.setStyleMask_(
+                finestra_ns.styleMask() | AppKit.NSWindowStyleMaskFullSizeContentView)
+            finestra_ns.setTitlebarAppearsTransparent_(True)
+            finestra_ns.setTitleVisibility_(AppKit.NSWindowTitleHidden)
+            self.misure_barra = self._misura_barra(AppKit, finestra_ns)
+        except Exception as errore:
+            print(f'aspetto nativo non applicato: {errore}', file=sys.stderr)
+        return self.misure_barra
+
+    @staticmethod
+    def _misura_barra(AppKit, finestra_ns):
+        """
+        Altezza della barra del titolo e spazio occupato dai tre pallini.
+
+        Si misurano invece di scriverli a mano: cambiano fra versioni di macOS,
+        e a schermo intero la barra sparisce del tutto.
+
+        La misura viene da contentLayoutRect, cioe' la parte di contenuto che la
+        barra del titolo non copre. Non si puo' usare contentRectForFrameRect_:
+        con la maschera a contenuto pieno il contenuto occupa gia' tutto il
+        frame e la differenza sarebbe sempre zero. contentLayoutRect invece
+        tiene conto della barra, e a schermo intero, dove la barra non c'e',
+        torna da solo pari all'intero frame.
+
+        OUTPUT: {'altezza_barra': int, 'spazio_pallini': int}
+        """
+        frame = finestra_ns.frame()
+        altezza = int(round(frame.size.height
+                            - finestra_ns.contentLayoutRect().size.height))
+
+        spazio = 0
+        pulsante = finestra_ns.standardWindowButton_(AppKit.NSWindowZoomButton)
+        if pulsante is not None:
+            riquadro = pulsante.frame()
+            spazio = int(round(riquadro.origin.x + riquadro.size.width)) + MARGINE_PALLINI
+
+        # a schermo intero la barra non c'e': niente fascia, niente spazio
+        if altezza <= 0:
+            return {'altezza_barra': 0, 'spazio_pallini': 0}
+        return {'altezza_barra': altezza, 'spazio_pallini': spazio}
+
+    def changeEvent(self, evento):
+        """A schermo intero la barra del titolo sparisce: la pagina va avvisata."""
+        super().changeEvent(evento)
+        if evento.type() == QEvent.WindowStateChange and self.isVisible():
+            precedenti = dict(self.misure_barra)
+            self.applica_aspetto_macos()
+            if self.misure_barra != precedenti:
+                self.ponte.annuncia_finestra(self.misure_barra)
+
+    # ------------------------------------------------------------------
+    # Geometria ricordata fra un avvio e l'altro
+    # ------------------------------------------------------------------
+
+    def _ripristina_geometria(self):
+        """Riapre la finestra dove e come era, se quel posto esiste ancora."""
+        cfg = configurazione.config()
+        salvata = cfg.get('geometria_finestra') or []
+        if len(salvata) == 4 and all(isinstance(v, int) for v in salvata):
+            riquadro = QRect(*salvata)
+            # una finestra salvata su un monitor scollegato riaprirebbe fuori campo
+            if riquadro.width() >= LARGHEZZA_MINIMA and riquadro.height() >= ALTEZZA_MINIMA \
+                    and any(s.availableGeometry().intersects(riquadro)
+                            for s in QGuiApplication.screens()):
+                self.setGeometry(riquadro)
+                if cfg.get('finestra_massimizzata'):
+                    self.setWindowState(self.windowState() | Qt.WindowMaximized)
+                return
+        self.resize(LARGHEZZA, ALTEZZA)
+
+    def _salva_geometria(self):
+        cfg = configurazione.config()
+        # da massimizzata normalGeometry tiene la dimensione "vera"
+        riquadro = self.normalGeometry()
+        cfg['geometria_finestra'] = [riquadro.x(), riquadro.y(),
+                                     riquadro.width(), riquadro.height()]
+        cfg['finestra_massimizzata'] = self.isMaximized()
+        configurazione.scrivi(configurazione.CONFIG, cfg)
+
     def closeEvent(self, evento):
+        self._salva_geometria()
         self.ponte.esecuzione.interrompi()
         super().closeEvent(evento)
 
@@ -444,15 +541,18 @@ def main():
     applicazione = QApplication(sys.argv)
     applicazione.setApplicationName('AnalisiRischio')
 
-    finestra = Finestra()
-    finestra.show()
-
-    # la cartella passata da riga di comando viene aperta appena la pagina e'
-    # pronta: ci pensa app.js chiedendo lo stato iniziale
+    # la cartella passata da riga di comando viene scritta in configurazione
+    # prima di aprire la finestra: e' da li' che app.js la legge, chiedendo lo
+    # stato iniziale appena la pagina e' pronta
     if len(sys.argv) > 1:
         cfg = configurazione.config()
         cfg['ultima_root'] = os.path.abspath(sys.argv[1])
         configurazione.scrivi(configurazione.CONFIG, cfg)
+
+    finestra = Finestra()
+    finestra.show()
+    # dopo show(): prima la finestra di sistema non esiste ancora
+    finestra.applica_aspetto_macos()
 
     return applicazione.exec_()
 

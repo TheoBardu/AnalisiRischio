@@ -44,6 +44,7 @@ const S = {
   parametriVibrazioni: {},
   recenti: [],
   campiRelazione: [],
+  layoutRelazione: [],
   passiPerModalita: {},
 
   schede: null,          // {dpi, mansioni, tempi}
@@ -115,29 +116,32 @@ function messaggio(testo, genere) {
 }
 
 // ---------------------------------------------------------------------------
-// Barra del titolo (finestra senza cornice)
+// Barra del titolo
 // ---------------------------------------------------------------------------
 
-function inizializzaBarra() {
-  const barra = el('tbar');
-  let trascinando = false;
+/*
+ * La finestra e' nativa: trascinamento, ridimensionamento e i tre pulsanti li
+ * gestisce macOS. Alla pagina resta solo da adattare la propria fascia scura
+ * alla barra del titolo vera, che le sta sopra trasparente: quanto e' alta e
+ * quanto spazio occupano i pallini a sinistra.
+ *
+ * A schermo intero la barra del titolo sparisce e le misure arrivano a zero:
+ * in quel caso si tolgono le variabili e valgono i ripieghi scritti in
+ * app.css, cioe' il caso della barra di sistema visibile sopra la pagina.
+ */
+function applicaMisureFinestra(misure) {
+  if (!misure) return;
+  const radice = document.documentElement;
+  const altezza = Number(misure.altezza_barra) || 0;
+  const pallini = Number(misure.spazio_pallini) || 0;
 
-  barra.addEventListener('mousedown', (e) => {
-    if (e.target.classList.contains('dot3')) return;
-    trascinando = true;
-    ponte.inizia_trascinamento(e.screenX, e.screenY);
-  });
-  window.addEventListener('mousemove', (e) => {
-    if (trascinando) ponte.trascina(e.screenX, e.screenY);
-  });
-  window.addEventListener('mouseup', () => {
-    if (trascinando) { trascinando = false; ponte.fine_trascinamento(); }
-  });
-  barra.addEventListener('dblclick', () => ponte.ingrandisci());
-
-  el('btn-chiudi').addEventListener('click', () => ponte.chiudi());
-  el('btn-riduci').addEventListener('click', () => ponte.riduci());
-  el('btn-ingrandisci').addEventListener('click', () => ponte.ingrandisci());
+  if (altezza > 0) {
+    radice.style.setProperty('--altezza-barra', altezza + 'px');
+    radice.style.setProperty('--spazio-pallini', pallini + 'px');
+  } else {
+    radice.style.removeProperty('--altezza-barra');
+    radice.style.removeProperty('--spazio-pallini');
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -325,8 +329,8 @@ SCHERMATE.cartelle = function () {
     <h4 class="mtitle">Cartella di lavoro</h4>
     <p class="msub">Seleziona la root dell'azienda. I rami Rumore e Vibrazioni, le cartelle misure e output e la scheda dei gruppi vengono riconosciuti automaticamente.</p>
   </div>
-  <div style="display:flex;gap:8px;align-items:flex-end">
-    <div class="field" style="flex:1"><label>Root azienda</label>
+  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+    <div class="field" style="flex:1;min-width:220px"><label>Root azienda</label>
       <input class="input mono" style="font-size:12.5px" id="campo-root" value="${esc(S.root)}">
     </div>
     <button class="btn btn-secondary" data-azione="apri-picker"><i class="ph ph-folder-open"></i>Sfoglia…</button>
@@ -608,8 +612,8 @@ SCHERMATE.schede = function () {
       `Tabella DPI e scheda mansioni lette da <span class="mono">${esc(nomeBase(S.schede.percorso))}</span> · ${S.schede.mansioni.righe.length} righe, ${S.schede.tempi ? S.schede.tempi.gruppi.length : 0} gruppi`,
       `<span class="tag">T₀ ${esc(S.parametriRumore.T0)} min</span>`)}
 
-  <div style="display:flex;gap:8px;align-items:flex-end">
-    <div class="field" style="flex:1"><label>File scheda gruppi e DPI</label>
+  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+    <div class="field" style="flex:1;min-width:220px"><label>File scheda gruppi e DPI</label>
       <div class="mono" style="font-size:12px;padding:6px 0;color:color-mix(in srgb,var(--color-text) 65%,transparent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl">${esc(S.schede.percorso)}</div>
     </div>
     <button class="btn btn-secondary" data-azione="scegli-scheda"><i class="ph ph-folder-open"></i>Sfoglia…</button>
@@ -621,7 +625,7 @@ SCHERMATE.schede = function () {
 
   <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.45fr);gap:14px;min-height:0;flex:1">
     <div style="display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0">
-      <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <p class="sec" style="flex:1">Tabella DPI</p>
         <button class="btn btn-secondary" data-aggiungi="dpi" style="padding:4px 9px;font-size:11.5px"><i class="ph ph-plus"></i>Aggiungi riga</button>
       </div>
@@ -629,9 +633,9 @@ SCHERMATE.schede = function () {
         { larghezze: { Descrizione: '190px', Marca: '130px', Modello: '150px' } })}
     </div>
     <div style="display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0">
-      <div style="display:flex;align-items:center;gap:8px">
-        <p class="sec" style="flex:1">Scheda mansioni · gruppi omogenei</p>
-        <span style="font-size:11px;color:color-mix(in srgb,var(--color-text) 42%,transparent)">le righe dei gruppi fuori da T₀ sono evidenziate</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <p class="sec">Scheda mansioni · gruppi omogenei</p>
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:color-mix(in srgb,var(--color-text) 42%,transparent)">le righe dei gruppi fuori da T₀ sono evidenziate</span>
         <button class="btn btn-secondary" data-aggiungi="mansioni" style="padding:4px 9px;font-size:11.5px"><i class="ph ph-plus"></i>Aggiungi riga</button>
       </div>
       ${griglia('mansioni', c, S.schede.mansioni.righe, {
@@ -902,9 +906,9 @@ SCHERMATE.misure = function () {
     <tbody>${corpo || `<tr><td colspan="${m.colonne.length + 1}" style="padding:14px;color:color-mix(in srgb,var(--color-text) 45%,transparent)">nessuna misura</td></tr>`}</tbody>
   </table></div>
 
-  <div style="display:flex;align-items:center;gap:8px">
-    <p class="sec" style="flex:1">Valori misurati · averaged_data.csv</p>
-    <span style="font-size:11px;color:color-mix(in srgb,var(--color-text) 42%,transparent)">modificabili: l'analisi li rilegge da qui invece di ricalcolarli</span>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <p class="sec">Valori misurati · averaged_data.csv</p>
+    <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:color-mix(in srgb,var(--color-text) 42%,transparent)">modificabili: l'analisi li rilegge da qui invece di ricalcolarli</span>
     <button class="btn btn-secondary" data-aggiungi="medie" style="padding:4px 9px;font-size:11.5px"><i class="ph ph-plus"></i>Aggiungi riga</button>
     <button class="btn btn-primary" data-azione="salva-medie" data-salva${S.medieSporche ? '' : ' disabled'} style="padding:4px 9px;font-size:11.5px"><i class="ph ph-floppy-disk"></i>Salva</button>
   </div>
@@ -947,7 +951,7 @@ SCHERMATE.attrezzature = function () {
     ${linguetta('costruttori', 'Dati costruttori')}${linguetta('HAV', 'Misure HAV')}${linguetta('WBV', 'Misure WBV')}
   </div>
 
-  <div style="display:flex;align-items:center;gap:8px">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
     <p class="sec" style="flex:1">${esc(corrente.titolo)}</p>
     <span class="mono" style="font-size:11px;color:color-mix(in srgb,var(--color-text) 40%,transparent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:340px;direction:rtl">${esc(dati.percorso || '')}</span>
     ${dati.errore ? '' : `<button class="btn btn-secondary" data-aggiungi="${scheda}" style="padding:4px 9px;font-size:11.5px"><i class="ph ph-plus"></i>Aggiungi riga</button>`}
@@ -1034,18 +1038,49 @@ SCHERMATE.relazione = function () {
                            colonne_dpi: [], colonne_heg: [], colonne_vib: [] };
   const scheda = r.scheda;
 
-  const gruppi = {};
-  for (const campo of S.campiRelazione) {
-    (gruppi[campo.gruppo] = gruppi[campo.gruppo] || []).push(campo);
-  }
+  /*
+   * I campi vanno sullo sfondo pagina, non dentro una card: .input e .card
+   * hanno lo stesso --color-surface, e su una card il riquadro sparirebbe.
+   * La disposizione - due colonne, gruppi impilati, alcuni campi affiancati -
+   * arriva da LAYOUT_GENERALI ed e' quella del mockup.
+   */
+  const perChiave = new Map(S.campiRelazione.map((c) => [c.chiave, c]));
 
-  const modulo = Object.entries(gruppi).map(([nome, campi]) => `
-    <div class="card elev-sm" style="padding:11px 13px;gap:9px">
-      <p class="sec">${esc(nome)}</p>
-      ${campi.map((c) => `
-        <div class="field"><label>${esc(c.etichetta)}</label>
-          <input class="input" style="font-size:12.5px" data-campo-relazione="${c.chiave}" value="${esc(r.campi[c.chiave] || '')}"></div>`).join('')}
-    </div>`).join('');
+  const campo = (chiave, dentroUnaRiga) => {
+    const c = perChiave.get(chiave);
+    if (!c) return '';
+    // in una riga con piu' campi ciascuno si divide lo spazio, salvo i corti
+    const dimensione = c.larghezza ? `width:${c.larghezza}`
+      : dentroUnaRiga ? 'flex:1;min-width:0' : '';
+    return `<div class="field"${dimensione ? ` style="${dimensione}"` : ''}>
+      <label>${esc(c.etichetta)}</label>
+      <input class="input${c.mono ? ' mono' : ''}" style="font-size:12.5px"
+        data-campo-relazione="${esc(c.chiave)}" value="${esc(r.campi[c.chiave] || '')}"></div>`;
+  };
+
+  const riga = (chiavi) => chiavi.length === 1 ? campo(chiavi[0], false)
+    : `<div style="display:flex;gap:8px">${chiavi.map((k) => campo(k, true)).join('')}</div>`;
+
+  const gruppo = (g) => `<div style="display:flex;flex-direction:column;gap:9px">
+      <p class="sec">${esc(g.nome)}</p>
+      ${g.righe.map(riga).join('')}</div>`;
+
+  // i campi che la disposizione non nomina non devono sparire dall'interfaccia
+  const disposti = new Set();
+  for (const colonna of S.layoutRelazione) {
+    for (const g of colonna) for (const r2 of g.righe) for (const k of r2) disposti.add(k);
+  }
+  const rimasti = S.campiRelazione.filter((c) => !disposti.has(c.chiave));
+
+  const colonne = S.layoutRelazione.map((colonna, indice) => {
+    const gruppi = colonna.map(gruppo).join('');
+    const extra = indice === 0 && rimasti.length
+      ? gruppo({ nome: 'Altri campi', righe: rimasti.map((c) => [c.chiave]) }) : '';
+    const nota = indice === S.layoutRelazione.length - 1
+      ? `<div style="padding:9px 12px;border-radius:8px;background:color-mix(in srgb,var(--color-text) 5%,transparent);font-size:11px;line-height:1.7;color:color-mix(in srgb,var(--color-text) 50%,transparent)">
+          Il quadro sinottico con le classi di rischio viene inserito automaticamente nelle conclusioni: ${esc(dati.frase_presenza || '—')}</div>` : '';
+    return `<div style="display:flex;flex-direction:column;gap:12px;min-width:0">${gruppi}${extra}${nota}</div>`;
+  }).join('');
 
   const tabellaSolaLettura = (colonne, righe) => `
     <div class="scroll-tab"><table>
@@ -1056,9 +1091,7 @@ SCHERMATE.relazione = function () {
 
   let corpo;
   if (scheda === 'generali') {
-    corpo = `<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;overflow-y:auto;flex:1;align-content:start">${modulo}</div>
-      <div style="font-size:11.5px;color:color-mix(in srgb,var(--color-text) 50%,transparent)">
-        Il quadro sinottico con le classi di rischio viene inserito automaticamente nelle conclusioni: ${esc(dati.frase_presenza || '—')}</div>`;
+    corpo = `<div style="flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-content:start">${colonne}</div>`;
   } else if (scheda === 'dpi') {
     corpo = tabellaSolaLettura(dati.colonne_dpi, dati.tabella_dpi);
   } else if (scheda === 'heg') {
@@ -1363,6 +1396,12 @@ async function riceviEvento(evento) {
       aggiungiRiga(evento.livello, evento.msg);
       break;
 
+    case 'finestra':
+      // la barra del titolo ha cambiato misura: succede entrando e uscendo
+      // dallo schermo intero
+      applicaMisureFinestra(evento);
+      break;
+
     case 'interrotta':
       aggiungiRiga('warning', 'Analisi interrotta su richiesta.');
       for (const p of e.passi) if (p.stato === 'corso') p.stato = 'errore';
@@ -1397,10 +1436,12 @@ async function inizializza() {
   S.parametriVibrazioni = stato.parametri_vibrazioni || {};
   S.recenti = stato.recenti || [];
   S.campiRelazione = stato.campi_relazione || [];
+  S.layoutRelazione = stato.layout_relazione || [];
   S.passiPerModalita = stato.passi || {};
   S.relazione.messaggio = (stato.relazione || {}).messaggio || '';
   S.modalita = S.config.modalita || 'rumore';
   S.root = S.config.ultima_root || '';
+  applicaMisureFinestra(stato.finestra);
 
   disegna();
   if (S.root) await scansiona();
@@ -1414,6 +1455,5 @@ new QWebChannel(qt.webChannelTransport, (canale) => {
     riceviEvento(evento);
   });
   while (inAttesaDelPonte.length) inAttesaDelPonte.shift()();
-  inizializzaBarra();
   inizializza();
 });

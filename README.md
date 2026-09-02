@@ -14,6 +14,24 @@ python app.py                       # riapre l'ultima cartella usata
 python app.py /percorso/azienda     # apre direttamente una cartella
 ```
 
+## La finestra
+
+E' una normale finestra di macOS: si ridimensiona da ogni bordo e da ogni
+angolo, ha gli angoli arrotondati e l'ombra di sistema, va a schermo intero e
+si trascina dalla fascia scura in alto. Posizione e dimensione vengono
+ricordate fra un avvio e l'altro.
+
+La barra del titolo viene resa trasparente e il contenuto sale fin sotto di
+essa, cosi' la fascia scura arriva in cima e i tre pallini di sistema ci si
+appoggiano sopra, dove il mockup ne disegnava di finti. L'altezza della barra e
+lo spazio dei pallini non sono scritti a mano: `app.py` li misura sulla
+finestra vera e li passa alla pagina come variabili CSS, perche' cambiano fra
+versioni di macOS e vanno a zero a schermo intero.
+
+Se `pyobjc` non c'e', o su un altro sistema operativo, non succede niente di
+grave: resta la barra del titolo di sistema sopra la pagina e l'applicazione si
+usa allo stesso modo.
+
 ## Cosa fa
 
 - **Riconosce la cartella**: a partire dalla root cerca i rami `Rumore` e

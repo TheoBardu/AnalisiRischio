@@ -2,6 +2,11 @@
 PyQt5>=5.15
 PyQtWebEngine>=5.15
 
+# Solo macOS e solo estetica: serve a rendere trasparente la barra del titolo
+# e a far salire il contenuto fin sotto di essa. Senza, l'applicazione funziona
+# lo stesso e macOS disegna la sua barra del titolo sopra la pagina.
+pyobjc-framework-Cocoa>=9.0; sys_platform == 'darwin'
+
 # Lettura e scrittura dei fogli di calcolo
 pandas>=2.0
 openpyxl>=3.1

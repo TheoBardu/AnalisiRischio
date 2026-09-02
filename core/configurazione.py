@@ -82,6 +82,9 @@ DEFAULT_CONFIG = {
     'modello_relazione_vibrazioni': 'docx/Modello_Relazione_VIB.docx',
     'ultima_root': '',
     'modalita': 'rumore',
+    # posizione e dimensione dell'ultima finestra: [x, y, larghezza, altezza]
+    'geometria_finestra': [],
+    'finestra_massimizzata': False,
 }
 
 

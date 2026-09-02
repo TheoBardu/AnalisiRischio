@@ -11,6 +11,10 @@ risultati dell'analisi: tabella_HEG dal riepilogo del rumore e tabella_dpi dal
 foglio Scheda_DPI.
 """
 
+# I campi del modulo: sono il riflesso dei segnaposto del modello .docx, e i
+# nomi delle chiavi devono restare quelli che il modello si aspetta.
+#   mono      - campo da mostrare in monospazio, perche' contiene numeri o date
+#   larghezza - larghezza fissa, per i campi molto corti
 CAMPI_GENERALI = [
     {'chiave': 'nome_azienda', 'etichetta': 'nome_azienda', 'gruppo': 'Azienda'},
     {'chiave': 'indirizzo_azienda', 'etichetta': 'indirizzo_azienda', 'gruppo': 'Azienda'},
@@ -19,13 +23,34 @@ CAMPI_GENERALI = [
     {'chiave': 'RSPP', 'etichetta': 'RSPP', 'gruppo': 'Figure responsabili'},
     {'chiave': 'medico_competente', 'etichetta': 'medico_competente', 'gruppo': 'Figure responsabili'},
     {'chiave': 'RLS', 'etichetta': 'RLS', 'gruppo': 'Figure responsabili'},
-    {'chiave': 'revisione', 'etichetta': 'revisione', 'gruppo': 'Documento'},
-    {'chiave': 'data_revisione', 'etichetta': 'data_revisione', 'gruppo': 'Documento'},
-    {'chiave': 'data_scadenza', 'etichetta': 'data_scadenza', 'gruppo': 'Documento'},
+    {'chiave': 'revisione', 'etichetta': 'revisione', 'gruppo': 'Documento', 'mono': True},
+    {'chiave': 'data_revisione', 'etichetta': 'data_revisione', 'gruppo': 'Documento', 'mono': True},
+    {'chiave': 'data_scadenza', 'etichetta': 'data_scadenza', 'gruppo': 'Documento', 'mono': True},
     {'chiave': 'motivo_revisione', 'etichetta': 'motivo_revisione', 'gruppo': 'Documento'},
-    {'chiave': 'giornate', 'etichetta': 'giornate', 'gruppo': 'Misurazioni'},
+    {'chiave': 'giornate', 'etichetta': 'giornate', 'gruppo': 'Misurazioni',
+     'mono': True, 'larghezza': '90px'},
     {'chiave': 'date_misurazione', 'etichetta': 'date_misurazione', 'gruppo': 'Misurazioni'},
     {'chiave': 'strumentazione', 'etichetta': 'strumentazione', 'gruppo': 'Misurazioni'},
+]
+
+# Disposizione del modulo, ricalcata dal mockup: due colonne, i gruppi uno
+# sotto l'altro, e dentro ogni gruppo le righe di campi affiancati. Sta
+# separata da CAMPI_GENERALI perche' e' impaginazione, non contenuto del
+# documento: i campi che non compaiono qui vengono comunque disegnati in fondo.
+LAYOUT_GENERALI = [
+    [   # colonna di sinistra
+        {'nome': 'Azienda',
+         'righe': [['nome_azienda'], ['indirizzo_azienda'], ['attivita_azienda']]},
+        {'nome': 'Figure responsabili',
+         'righe': [['datore_di_lavoro', 'RSPP'], ['medico_competente', 'RLS']]},
+    ],
+    [   # colonna di destra
+        {'nome': 'Documento',
+         'righe': [['revisione', 'data_revisione', 'data_scadenza'],
+                   ['motivo_revisione']]},
+        {'nome': 'Misurazioni',
+         'righe': [['giornate', 'date_misurazione'], ['strumentazione']]},
+    ],
 ]
 
 COLONNE_TABELLA_DPI = ['codice_DPI', 'descrizione', 'marca', 'modello',

@@ -18,10 +18,7 @@
 -->
 <div class="win">
   <div class="tbar" id="tbar">
-    <span class="dot3" id="btn-chiudi" style="background:#ff5f57"></span>
-    <span class="dot3" id="btn-riduci" style="background:#febc2e"></span>
-    <span class="dot3" id="btn-ingrandisci" style="background:#28c840"></span>
-    <span style="margin-left:8px;color:color-mix(in srgb,var(--color-text) 70%,transparent)">Analisi Valutazione Rischio</span>
+    <span style="color:color-mix(in srgb,var(--color-text) 70%,transparent)">Analisi Valutazione Rischio</span>
     <span style="margin-left:auto;font-size:11px;color:var(--color-accent)" id="stato-titolo"></span>
   </div>
   <div class="shell">
@@ -32,15 +29,13 @@
 <div id="modale"></div>
 
 <script>
-/* Ponte finto: risponde con la fixture, ignora i comandi di finestra. */
+/* Ponte finto: risponde con la fixture. */
 window.__ponteFinto = {
   chiama(azione, payload, callback) {
     const risposta = window.__fixture[azione];
     callback(JSON.stringify(risposta === undefined ? { ok: true } : risposta));
   },
   evento: { connect() {} },
-  chiudi() {}, riduci() {}, ingrandisci() {},
-  inizia_trascinamento() {}, trascina() {}, fine_trascinamento() {},
 };
 window.qt = { webChannelTransport: {} };
 window.QWebChannel = function (trasporto, pronto) {
