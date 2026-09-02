@@ -42,7 +42,7 @@ body { padding: 0; }
 .cella-edit[readonly] { color: color-mix(in srgb, var(--color-text) 45%, transparent); }
 .cella-edit[readonly]:hover { border-color: transparent; }
 
-.riga-sforata { background: color-mix(in srgb, #febc2e 12%, transparent); }
+.riga-sforata { background: color-mix(in srgb, var(--colore-avviso) 12%, transparent); }
 
 /*
  * Adesso che la finestra si ridimensiona, le righe a due estremi e le
@@ -59,7 +59,7 @@ body { padding: 0; }
   background: transparent; border: 0; color: color-mix(in srgb, var(--color-text) 45%, transparent);
   cursor: pointer; padding: 2px 5px; border-radius: 4px; font-size: 13px;
 }
-.btn-icona:hover { color: #ff8a80; background: color-mix(in srgb, #b22222 18%, transparent); }
+.btn-icona:hover { color: var(--colore-testo-allerta); background: color-mix(in srgb, var(--colore-errore) 18%, transparent); }
 
 /* contenitore scorrevole delle tabelle: la pagina non scorre mai in orizzontale */
 /* min-width:0 e' necessario dentro grid e flex: senza, il contenitore si
@@ -103,14 +103,14 @@ body { padding: 0; }
 .avviso {
   display: flex; gap: 9px; align-items: flex-start; padding: 9px 12px;
   border-radius: 8px; font-size: 12px;
-  background: color-mix(in srgb, #febc2e 12%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #febc2e 35%, transparent);
+  background: color-mix(in srgb, var(--colore-avviso) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--colore-avviso) 35%, transparent);
 }
 .avviso.errore {
-  background: color-mix(in srgb, #b22222 16%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #b22222 45%, transparent);
+  background: color-mix(in srgb, var(--colore-errore) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--colore-errore) 45%, transparent);
 }
 .avviso.ok {
-  background: color-mix(in srgb, #32cd32 12%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #32cd32 35%, transparent);
+  background: color-mix(in srgb, var(--colore-ok) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--colore-ok) 35%, transparent);
 }

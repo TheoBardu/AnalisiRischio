@@ -55,15 +55,37 @@ def main():
         {}, sintesi_rumore['gruppi'], sintesi_vib['gruppi'],
         lettura['dpi']['righe'], lettura['dpi']['colonne'])
 
+    # stato della relazione per ramo: nell'applicazione lo costruisce il ponte
+    # dai percorsi della scansione, qui basta il modello e il frontespizio
+    chiave_modello = {'rumore': 'modello_relazione_rumore',
+                      'vibrazioni': 'modello_relazione_vibrazioni'}
+    stato_relazione = {}
+    for ramo in ('rumore', 'vibrazioni'):
+        frontespizio = configurazione.percorso_frontespizio(
+            configurazione.config().get(f'frontespizio_{ramo}', ''))
+        uscita = os.path.join(scansione.get(ramo, {}).get('output', ''),
+                              generatore.NOME_DOCUMENTO[ramo])
+        stato = generatore.stato(
+            configurazione.percorso_modello(chiave_modello[ramo]),
+            frontespizio, uscita)
+        stato['presente'] = bool(scansione.get(ramo, {}).get('presente'))
+        stato['uscita'] = uscita
+        stato_relazione[ramo] = stato
+
+    frontespizi = {ramo: configurazione.frontespizi_disponibili(ramo)
+                   for ramo in ('rumore', 'vibrazioni')}
+
     fixture = {
         'stato_iniziale': {
             'config': configurazione.config(),
             'parametri_rumore': par_rumore,
             'parametri_vibrazioni': par_vib,
             'recenti': configurazione.progetti_recenti(),
-            'campi_relazione': contesto_relazione.CAMPI_GENERALI,
-            'layout_relazione': contesto_relazione.LAYOUT_GENERALI,
-            'relazione': generatore.stato('', ''),
+            'campi_relazione': {blocco: contesto_relazione.elenco_campi([blocco])
+                                for blocco in ('comuni', 'rumore', 'vibrazioni')},
+            'layout_relazione': contesto_relazione.LAYOUT,
+            'frontespizi': frontespizi,
+            'relazione': stato_relazione,
             'passi': {m: elenco_passi.passi_di(m)
                       for m in ('rumore', 'vibrazioni', 'combinato')},
             # misure tipiche della barra del titolo di macOS: nell'applicazione
@@ -90,8 +112,13 @@ def main():
             'colonne_dpi': contesto_relazione.COLONNE_TABELLA_DPI,
             'colonne_heg': contesto_relazione.COLONNE_TABELLA_HEG,
             'colonne_vib': contesto_relazione.COLONNE_TABELLA_VIB,
+            'stato': stato_relazione,
+            'frontespizi': frontespizi,
         },
         'salva_parametri': {'ok': True},
+        # nell'anteprima il ponte e' finto: la scrittura non parte davvero
+        'relazione_genera': {'ok': False,
+                             'messaggio': 'anteprima: la scrittura non e\' attiva'},
     }
 
     with open(destinazione, 'w', encoding='utf-8') as f:

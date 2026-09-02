@@ -23,6 +23,7 @@ import logging
 import os
 import sys
 import time
+from types import SimpleNamespace
 
 # stdout reale, catturato prima di ogni redirezione: e' il canale degli eventi
 _CANALE = sys.stdout
@@ -106,6 +107,25 @@ def carica_modulo(cartella, nome):
     sys.modules[spec.name] = modulo
     spec.loader.exec_module(modulo)
     return modulo
+
+
+def parametri_backend(modulo_parametri, sovrascritture):
+    """
+    Costruisce l'oggetto dei parametri da passare al backend.
+
+    analisi() e i writer di VRV ricevono il modulo parameters e ne leggono gli
+    attributi: va bene qualunque oggetto che li esponga. Si parte dai default
+    del backend e si sovrascrive con quanto arriva dall'interfaccia, senza
+    toccare il file parameters.py.
+    """
+    valori = {}
+    if modulo_parametri is not None:
+        for nome in dir(modulo_parametri):
+            if not nome.startswith('_'):
+                valori[nome] = getattr(modulo_parametri, nome)
+    valori.update({k: v for k, v in (sovrascritture or {}).items()
+                   if not k.startswith('_')})
+    return SimpleNamespace(**valori)
 
 
 class Sequenza:

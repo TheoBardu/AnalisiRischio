@@ -43,8 +43,9 @@ const S = {
   parametriRumore: {},
   parametriVibrazioni: {},
   recenti: [],
-  campiRelazione: [],
-  layoutRelazione: [],
+  campiRelazione: {},     // {comuni, rumore, vibrazioni}
+  layoutRelazione: {},
+  frontespizi: {},
   passiPerModalita: {},
 
   schede: null,          // {dpi, mansioni, tempi}
@@ -58,12 +59,16 @@ const S = {
 
   esecuzione: { inCorso: false, passi: [], righe: [], filtro: 'tutti', coda: true, inizio: 0 },
 
-  relazione: { campi: {}, dati: null, scheda: 'generali', messaggio: '', preset: [] },
+  relazione: { campi: {}, dati: null, scheda: 'generali', messaggio: '',
+               esito: '', inCorso: false, stato: {}, preset: [] },
   modale: null,
   messaggio: null,
 };
 
 const MAX_RIGHE_LOG = 4000;
+
+// testo attenuato: la stessa mescola usata dai fogli di stile
+const VAR_TENUE = 'color-mix(in srgb,var(--color-text) 50%,transparent)';
 
 // ---------------------------------------------------------------------------
 // Utilita'
@@ -197,13 +202,18 @@ function disegnaSidebar() {
     const badge = chiave === 'superamenti' && alta
       ? `<span style="margin-left:auto;font-size:10px" class="mono">${alta} ALTA</span>` : '';
     const allerta = chiave === 'schede' && S.schede && S.schede.tempi && S.schede.tempi.sforati.length
-      ? `<i class="ph-fill ph-warning-circle" style="margin-left:auto;color:#febc2e;font-size:13px"></i>` : '';
+      ? `<i class="ph-fill ph-warning-circle" style="margin-left:auto;color:var(--colore-avviso);font-size:13px"></i>` : '';
     html += `<button class="nvi ${S.schermata === chiave ? 'on' : ''}" data-vai="${chiave}"${spento ? ' disabled' : ''}>`
       + `<i class="${voce.icona}"></i>${esc(voce.nome)}${allerta}${badge}</button>`;
   }
 
   html += `<div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
-    <div class="sec">Stato</div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div class="sec" style="flex:1">Stato</div>
+      <button class="btn btn-secondary" style="padding:3px 7px" data-azione="tema"
+        title="${S.config.tema === 'chiaro' ? 'Passa al tema scuro' : 'Passa al tema chiaro'}">
+        <i class="ph ${S.config.tema === 'chiaro' ? 'ph-moon' : 'ph-sun'}"></i></button>
+    </div>
     <div style="font-size:11px;line-height:1.7;color:color-mix(in srgb,var(--color-text) 50%,transparent)">${esc(testoStato())}</div>`;
   if (S.esecuzione.inCorso) {
     html += `<button class="btn btn-secondary btn-block" data-azione="ferma"><i class="ph ph-stop"></i>Interrompi</button>`;
@@ -212,6 +222,21 @@ function disegnaSidebar() {
   }
   html += `</div>`;
   el('side').innerHTML = html;
+}
+
+/*
+ * Applica il tema all'elemento radice.
+ *
+ * Il valore vero sta in config.json, ma se ne tiene una copia in
+ * localStorage: index.html la legge prima del primo disegno, cosi' aprendo
+ * l'applicazione in tema chiaro non si vede il lampo di quello scuro mentre
+ * il ponte risponde.
+ */
+function applicaTema(tema) {
+  const scelto = tema === 'chiaro' ? 'chiaro' : 'scuro';
+  document.documentElement.dataset.theme = scelto;
+  try { localStorage.setItem('tema', scelto); } catch (err) { /* niente memoria: pazienza */ }
+  return scelto;
 }
 
 function testoStato() {
@@ -294,9 +319,9 @@ SCHERMATE.cartelle = function () {
 
   const righeCartelle = cartelle.map((c) => `
     <div style="display:grid;grid-template-columns:1fr 78px 92px;padding:8px 12px;font-size:12.5px;border-top:1px solid var(--color-divider);opacity:${c.valida ? 1 : .45}">
-      <span class="mono"><i class="${ICONE_FORMATO[c.fmt] || 'ph ph-folder'}" style="margin-right:7px;color:${c.valida ? 'var(--color-accent)' : '#febc2e'}"></i>${esc(c.path)}</span>
+      <span class="mono"><i class="${ICONE_FORMATO[c.fmt] || 'ph ph-folder'}" style="margin-right:7px;color:${c.valida ? 'var(--color-accent)' : 'var(--colore-avviso)'}"></i>${esc(c.path)}</span>
       <span class="tag" style="justify-self:start">${esc(c.fmt)}</span>
-      <span style="text-align:right;color:${c.n ? 'inherit' : '#febc2e'}">${esc(c.n)}</span>
+      <span style="text-align:right;color:${c.n ? 'inherit' : 'var(--colore-avviso)'}">${esc(c.n)}</span>
     </div>`).join('');
 
   const supporto = [
@@ -310,7 +335,7 @@ SCHERMATE.cartelle = function () {
   ].map(([nome, valore, ok], i, arr) => `
     <div class="kv"${i < arr.length - 1 ? ' style="border-bottom:1px solid var(--color-divider)"' : ''}>
       <span class="mono">${esc(nome)}</span>
-      <span style="color:${ok ? '#8fe08f' : '#febc2e'}">${esc(valore)}</span></div>`).join('');
+      <span style="color:${ok ? 'var(--colore-testo-ok)' : 'var(--colore-avviso)'}">${esc(valore)}</span></div>`).join('');
 
   const pr = S.parametriRumore;
   const pv = S.parametriVibrazioni;
@@ -346,7 +371,7 @@ SCHERMATE.cartelle = function () {
           <span>Cartella</span><span>Formato</span><span style="text-align:right">File</span></div>
         ${righeCartelle || '<div style="padding:14px 12px;font-size:12px;color:color-mix(in srgb,var(--color-text) 45%,transparent)">nessuna cartella di misura riconosciuta</div>'}
       </div>
-      ${avvisi.map((a) => `<p style="margin:0;font-size:11px;color:#febc2e"><i class="ph-fill ph-warning-circle" style="margin-right:5px"></i>${esc(a)}</p>`).join('')}
+      ${avvisi.map((a) => `<p style="margin:0;font-size:11px;color:var(--colore-avviso)"><i class="ph-fill ph-warning-circle" style="margin-right:5px"></i>${esc(a)}</p>`).join('')}
 
       <p class="sec" style="margin-top:6px">Valutazione da eseguire</p>
       <div class="seg">
@@ -383,7 +408,7 @@ SCHERMATE.cartelle = function () {
         <label class="seg-opt" style="justify-content:flex-start;gap:8px;background:transparent;box-shadow:none;padding-left:0">
           <input type="checkbox" data-par-rumore="rileggi_misure" ${pr.rileggi_misure ? 'checked' : ''}>
           <span style="font-size:12px">Rileggi i file di misura</span></label>
-        <p style="margin:-4px 0 0;font-size:11px;color:#febc2e">Ricalcola averaged_data.csv da zero: le misure corrette o aggiunte a mano vanno perse.</p>
+        <p style="margin:-4px 0 0;font-size:11px;color:var(--colore-avviso)">Ricalcola averaged_data.csv da zero: le misure corrette o aggiunte a mano vanno perse.</p>
       </div>` : ''}
 
       ${mostraVibrazioni ? `
@@ -590,7 +615,7 @@ function bannerTempi() {
     return `<div id="banner-tempi" class="avviso ok"><i class="ph-fill ph-check-circle"></i>
       <div>Tutti i ${t ? t.gruppi.length : 0} gruppi omogenei hanno somma dei Ti pari a T₀ (${t ? t.t0 : 480} min).</div></div>`;
   }
-  const elenchi = t.sforati.map((g) => `<span class="tag" style="margin-right:6px">GrOm ${esc(g.code)} · ${esc(g.tot)} min <span style="color:#febc2e">${esc(g.delta)}</span></span>`).join('');
+  const elenchi = t.sforati.map((g) => `<span class="tag" style="margin-right:6px">GrOm ${esc(g.code)} · ${esc(g.tot)} min <span style="color:var(--colore-avviso)">${esc(g.delta)}</span></span>`).join('');
   return `<div id="banner-tempi" class="avviso"><i class="ph-fill ph-warning-circle"></i>
     <div><div style="margin-bottom:6px">${t.sforati.length} gruppi omogenei con somma dei Ti diversa da T₀ (${t.t0} min) — l'analisi Lex,8h si fermerebbe con un errore.</div>
     <div>${elenchi}</div></div></div>`;
@@ -654,13 +679,13 @@ SCHERMATE.schede = function () {
 const ICONE_PASSO = {
   attesa: ['ph ph-minus', 'color-mix(in srgb,var(--color-text) 30%,transparent)'],
   corso: ['ph ph-arrow-clockwise', 'var(--color-accent)'],
-  fatto: ['ph-fill ph-check-circle', '#32cd32'],
-  saltato: ['ph ph-minus', '#febc2e'],
-  errore: ['ph-fill ph-warning-circle', '#b22222'],
+  fatto: ['ph-fill ph-check-circle', 'var(--colore-ok)'],
+  saltato: ['ph ph-minus', 'var(--colore-avviso)'],
+  errore: ['ph-fill ph-warning-circle', 'var(--colore-errore)'],
 };
 
 const COLORI_LIVELLO = { info: 'color-mix(in srgb,var(--color-text) 55%,transparent)',
-                         warning: '#febc2e', error: '#ff8a80' };
+                         warning: 'var(--colore-avviso)', error: 'var(--colore-testo-allerta)' };
 
 SCHERMATE.log = function () {
   const e = S.esecuzione;
@@ -709,8 +734,8 @@ SCHERMATE.log = function () {
     <div class="seg">
       ${filtro('tutti', 'Tutti', '')}
       ${filtro('info', 'Info', 'var(--color-accent)')}
-      ${filtro('warning', 'Warning', '#febc2e')}
-      ${filtro('error', 'Errori', '#b22222')}
+      ${filtro('warning', 'Warning', 'var(--colore-avviso)')}
+      ${filtro('error', 'Errori', 'var(--colore-errore)')}
     </div>
     <div style="margin-left:auto;display:flex;gap:6px">
       <button class="btn btn-secondary" data-azione="coda" style="padding:5px 10px;font-size:11.5px">
@@ -752,7 +777,7 @@ SCHERMATE.superamenti = function () {
           <td><span style="width:7px;height:7px;border-radius:50%;background:${g.colore};display:inline-block;margin-right:8px"></span>
               <span class="mono" style="opacity:.55;margin-right:6px">${esc(g.code)}</span>${esc(g.nome)}</td>
           <td class="mono">${esc(g.lex)}</td><td class="mono">${esc(g.u)}</td>
-          <td class="mono"${g.oltre_limite ? ' style="color:#ff8a80;font-weight:600"' : ''}>${esc(g.lexmax)}</td>
+          <td class="mono"${g.oltre_limite ? ' style="color:var(--colore-testo-allerta);font-weight:600"' : ''}>${esc(g.lexmax)}</td>
           <td class="mono">${esc(g.picco)}</td><td class="mono">${esc(g.leqa)}</td><td class="mono">${esc(g.ti)}</td>
           <td><span class="tag" style="color:${g.colore};box-shadow:inset 0 0 0 1px ${g.colore}66">${esc(g.classe)}</span></td>
         </tr>`).join('')}</tbody></table></div>`;
@@ -777,7 +802,7 @@ SCHERMATE.superamenti = function () {
           </div>`).join('')}</div>`;
     };
     corpo = `<div style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr) minmax(0,1fr);gap:14px;flex:1;min-height:0">
-      ${colonna('ALTA', '#b22222')}${colonna('MEDIA', '#00bfff')}${colonna('BASSA', '#32cd32')}</div>`;
+      ${colonna('ALTA', 'var(--colore-classe-alta)')}${colonna('MEDIA', 'var(--colore-classe-media)')}${colonna('BASSA', 'var(--colore-classe-bassa)')}</div>`;
   } else {
     const scelto = r.gruppi.find((g) => g.code === S.gruppoScelto) || r.gruppi[0];
     corpo = `<div style="display:grid;grid-template-columns:230px minmax(0,1fr);gap:14px;flex:1;min-height:0">
@@ -797,7 +822,7 @@ SCHERMATE.superamenti = function () {
   return `
   ${intestazione('Superamenti del valore limite',
       `${r.gruppi.length} gruppi omogenei · limite Lex,8h ${r.limite} dBA`,
-      `<span class="tag" style="color:#b22222;box-shadow:inset 0 0 0 1px #b2222266"><i class="ph-fill ph-warning-circle" style="margin-right:5px"></i>${r.conteggi.ALTA || 0} in classe ALTA</span>`)}
+      `<span class="tag" style="color:var(--colore-classe-alta);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--colore-classe-alta) 40%, transparent)"><i class="ph-fill ph-warning-circle" style="margin-right:5px"></i>${r.conteggi.ALTA || 0} in classe ALTA</span>`)}
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <div class="seg">${scelta('sinottico', 'Quadro sinottico', 'ph ph-table')}${scelta('semaforo', 'Semaforo', 'ph ph-columns')}${scelta('dettaglio', 'Dettaglio gruppo', 'ph ph-rows')}</div>
     ${vista === 'sinottico' ? `<label class="seg-opt" style="background:transparent;box-shadow:none"><input type="checkbox" data-solo-alta ${soloAlta ? 'checked' : ''}><span style="margin-left:6px">Solo classe ALTA</span></label>` : ''}
@@ -840,7 +865,7 @@ function dettaglioGruppo(g, limite) {
       <thead><tr><th>ID misura</th><th>Compito</th><th>Ti (min)</th><th>LeqA</th><th>LeqC</th><th>Ppeak</th><th>Contributo</th></tr></thead>
       <tbody>${g.attivita.map((a) => `<tr>
         <td class="mono">${esc(a.id)}</td><td>${esc(a.desc)}</td><td class="mono">${esc(a.ti)}</td>
-        <td class="mono"${a.rossa ? ' style="color:#ff8a80"' : ''}>${esc(a.leqa)}</td>
+        <td class="mono"${a.rossa ? ' style="color:var(--colore-testo-allerta)"' : ''}>${esc(a.leqa)}</td>
         <td class="mono">${esc(a.leqc)}</td><td class="mono">${esc(a.ppeak)}</td>
         <td class="mono" style="opacity:.7">${esc(a.contributo)}</td></tr>`).join('')}</tbody></table></div>
   </div>`;
@@ -850,7 +875,7 @@ function dettaglioGruppo(g, limite) {
 // Schermata: Misure singole (rumore)
 // ---------------------------------------------------------------------------
 
-const COLORI_COLONNA = { U: '#87ceeb', LeqA: '#ffa07a', Ppeak: '#ff4500' };
+const COLORI_COLONNA = { U: 'var(--colore-colonna-u)', LeqA: 'var(--colore-colonna-leqa)', Ppeak: 'var(--colore-colonna-ppeak)' };
 
 SCHERMATE.misure = function () {
   const m = S.misure;
@@ -1004,7 +1029,7 @@ SCHERMATE.esposizioni = function () {
       <div class="card elev-sm" style="flex:1;padding:10px 12px;gap:7px">
         <div class="sec">${tipo}</div>
         <div style="display:flex;gap:12px">
-          ${[['ALTA', '#b22222'], ['MEDIA', '#00bfff'], ['BASSA', '#32cd32']].map(([c, colore]) => `
+          ${[['ALTA', 'var(--colore-classe-alta)'], ['MEDIA', 'var(--colore-classe-media)'], ['BASSA', 'var(--colore-classe-bassa)']].map(([c, colore]) => `
             <span style="display:flex;align-items:center;gap:6px;font-size:12px">
               <span style="width:8px;height:8px;border-radius:50%;background:${colore}"></span>${c}
               <span class="mono" style="opacity:.6">${v.conteggi[tipo][c] || 0}</span></span>`).join('')}
@@ -1037,50 +1062,127 @@ SCHERMATE.relazione = function () {
   const dati = r.dati || { tabella_dpi: [], tabella_HEG: [], tabella_vibrazioni: [],
                            colonne_dpi: [], colonne_heg: [], colonne_vib: [] };
   const scheda = r.scheda;
+  const statoRami = r.stato || {};
 
   /*
    * I campi vanno sullo sfondo pagina, non dentro una card: .input e .card
    * hanno lo stesso --color-surface, e su una card il riquadro sparirebbe.
    * La disposizione - due colonne, gruppi impilati, alcuni campi affiancati -
-   * arriva da LAYOUT_GENERALI ed e' quella del mockup.
+   * arriva dai LAYOUT di relazione/contesto.py, uno per blocco.
    */
-  const perChiave = new Map(S.campiRelazione.map((c) => [c.chiave, c]));
+  const valoreDi = (c) => {
+    const salvato = r.campi[c.chiave];
+    if (salvato !== undefined && salvato !== null) return salvato;
+    return c.valore !== undefined && c.valore !== null ? c.valore : '';
+  };
 
-  const campo = (chiave, dentroUnaRiga) => {
+  const opzioni = (elenco, scelto) => elenco.map((v) =>
+    `<option value="${esc(v)}"${String(v) === String(scelto) ? ' selected' : ''}>${esc(v)}</option>`).join('');
+
+  const controllo = (c) => {
+    const attributo = `data-campo-relazione="${esc(c.chiave)}"`;
+    const base = `class="input${c.mono ? ' mono' : ''}" style="font-size:12.5px"`;
+    const valore = valoreDi(c);
+
+    if (c.tipo === 'testolungo') {
+      return `<textarea ${base.replace('font-size:12.5px', 'font-size:12.5px;min-height:64px')} ${attributo}>${esc(valore)}</textarea>`;
+    }
+    if (c.tipo === 'sino') {
+      const scelte = ['Si', 'NO'];
+      if (valore && !scelte.includes(String(valore))) scelte.unshift(String(valore));
+      return `<select ${base} ${attributo}>${opzioni(scelte, valore)}</select>`;
+    }
+    if (c.tipo === 'flag') {
+      return `<label style="display:flex;align-items:center;gap:8px;font-size:12.5px;padding:6px 0">
+        <input type="checkbox" ${attributo}${valore ? ' checked' : ''}>${esc(c.etichetta)}</label>`;
+    }
+    if (c.tipo === 'scelta') {
+      // i frontespizi disponibili nella cartella del ramo, piu' quello gia'
+      // scelto se il file nel frattempo e' sparito
+      const elenco = ((S.frontespizi || {})[c.blocco] || []).slice();
+      if (valore && !elenco.includes(String(valore))) elenco.unshift(String(valore));
+      if (!elenco.length) return `<div class="mono" style="font-size:11.5px;padding:7px 0;color:${VAR_TENUE}">nessun frontespizio trovato</div>`;
+      return `<select ${base} ${attributo}>${opzioni(elenco, valore)}</select>`;
+    }
+    if (c.tipo === 'file') {
+      return `<div style="display:flex;gap:6px">
+        <input ${base.replace('class="input', 'class="input mono')} style="font-size:11.5px;flex:1;min-width:0" ${attributo} value="${esc(valore)}">
+        <button class="btn btn-secondary" data-azione="scegli-logo"><i class="ph ph-folder-open"></i></button></div>`;
+    }
+    return `<input ${base} ${attributo} value="${esc(valore)}">`;
+  };
+
+  const campo = (perChiave) => (chiave, dentroUnaRiga) => {
     const c = perChiave.get(chiave);
     if (!c) return '';
     // in una riga con piu' campi ciascuno si divide lo spazio, salvo i corti
     const dimensione = c.larghezza ? `width:${c.larghezza}`
       : dentroUnaRiga ? 'flex:1;min-width:0' : '';
+    // il flag porta gia' la propria etichetta accanto alla casella
+    const etichetta = c.tipo === 'flag' ? '' : `<label>${esc(c.etichetta)}</label>`;
     return `<div class="field"${dimensione ? ` style="${dimensione}"` : ''}>
-      <label>${esc(c.etichetta)}</label>
-      <input class="input${c.mono ? ' mono' : ''}" style="font-size:12.5px"
-        data-campo-relazione="${esc(c.chiave)}" value="${esc(r.campi[c.chiave] || '')}"></div>`;
+      ${etichetta}${controllo(c)}</div>`;
   };
 
-  const riga = (chiavi) => chiavi.length === 1 ? campo(chiavi[0], false)
-    : `<div style="display:flex;gap:8px">${chiavi.map((k) => campo(k, true)).join('')}</div>`;
+  /* Un blocco di campi (comuni, rumore, vibrazioni) impaginato dal suo layout. */
+  const modulo = (blocco, coda) => {
+    const elenco = (S.campiRelazione || {})[blocco] || [];
+    const layout = (S.layoutRelazione || {})[blocco] || [];
+    const perChiave = new Map(elenco.map((c) => [c.chiave, c]));
+    const disegnaCampo = campo(perChiave);
 
-  const gruppo = (g) => `<div style="display:flex;flex-direction:column;gap:9px">
-      <p class="sec">${esc(g.nome)}</p>
-      ${g.righe.map(riga).join('')}</div>`;
+    const riga = (chiavi) => chiavi.length === 1 ? disegnaCampo(chiavi[0], false)
+      : `<div style="display:flex;gap:8px">${chiavi.map((k) => disegnaCampo(k, true)).join('')}</div>`;
 
-  // i campi che la disposizione non nomina non devono sparire dall'interfaccia
-  const disposti = new Set();
-  for (const colonna of S.layoutRelazione) {
-    for (const g of colonna) for (const r2 of g.righe) for (const k of r2) disposti.add(k);
-  }
-  const rimasti = S.campiRelazione.filter((c) => !disposti.has(c.chiave));
+    const gruppo = (g) => `<div style="display:flex;flex-direction:column;gap:9px">
+        <p class="sec">${esc(g.nome)}</p>
+        ${g.righe.map(riga).join('')}</div>`;
 
-  const colonne = S.layoutRelazione.map((colonna, indice) => {
-    const gruppi = colonna.map(gruppo).join('');
-    const extra = indice === 0 && rimasti.length
-      ? gruppo({ nome: 'Altri campi', righe: rimasti.map((c) => [c.chiave]) }) : '';
-    const nota = indice === S.layoutRelazione.length - 1
-      ? `<div style="padding:9px 12px;border-radius:8px;background:color-mix(in srgb,var(--color-text) 5%,transparent);font-size:11px;line-height:1.7;color:color-mix(in srgb,var(--color-text) 50%,transparent)">
-          Il quadro sinottico con le classi di rischio viene inserito automaticamente nelle conclusioni: ${esc(dati.frase_presenza || '—')}</div>` : '';
-    return `<div style="display:flex;flex-direction:column;gap:12px;min-width:0">${gruppi}${extra}${nota}</div>`;
-  }).join('');
+    // i campi che la disposizione non nomina non devono sparire dall'interfaccia
+    const disposti = new Set();
+    for (const colonna of layout) {
+      for (const g of colonna) for (const rg of g.righe) for (const k of rg) disposti.add(k);
+    }
+    const rimasti = elenco.filter((c) => !disposti.has(c.chiave));
+
+    const colonne = layout.map((colonna, indice) => {
+      const gruppi = colonna.map(gruppo).join('');
+      const extra = indice === 0 && rimasti.length
+        ? gruppo({ nome: 'Altri campi', righe: rimasti.map((c) => [c.chiave]) }) : '';
+      const nota = indice === layout.length - 1 && coda ? coda : '';
+      return `<div style="display:flex;flex-direction:column;gap:12px;min-width:0">${gruppi}${extra}${nota}</div>`;
+    }).join('');
+
+    return `<div style="flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-content:start">${colonne}</div>`;
+  };
+
+  /* Valori ricavati da soli: stesso trattamento delle tabelle, sola lettura. */
+  const riquadroAutomatico = (voci) => `
+    <div class="scroll-tab"><table>
+      <thead><tr><th>valore automatico</th><th>contenuto</th></tr></thead>
+      <tbody>${voci.map(([nome, valore]) =>
+        `<tr><td>${esc(nome)}</td><td class="mono">${esc(valore || '—')}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+
+  const notaQuadro = `<div style="padding:9px 12px;border-radius:8px;background:color-mix(in srgb,var(--color-text) 5%,transparent);font-size:11px;line-height:1.7;color:${VAR_TENUE}">
+      Il quadro sinottico con le classi di rischio viene inserito automaticamente nelle conclusioni: ${esc(dati.frase_presenza || '—')}</div>`;
+
+  const automatici = (ramo) => {
+    const st = statoRami[ramo] || {};
+    const voci = [
+      ['modello', nomeBase(S.config[ramo === 'rumore' ? 'modello_relazione_rumore' : 'modello_relazione_vibrazioni'])],
+      ['frontespizio', st.frontespizio_presente === false ? 'non trovato'
+        : nomeBase(r.campi[`frontespizio_${ramo}`] || S.config[`frontespizio_${ramo}`] || '')],
+      ['documento prodotto', st.uscita || '—'],
+    ];
+    if (ramo === 'rumore') {
+      voci.push(['gruppi omogenei', String((dati.tabella_HEG || []).length)]);
+      voci.push(['DPI in scheda', String((dati.tabella_dpi || []).length)]);
+    } else {
+      voci.push(['gruppi con A(8)', String((dati.tabella_vibrazioni || []).length)]);
+    }
+    return `<div style="margin-top:12px">${riquadroAutomatico(voci)}</div>`;
+  };
 
   const tabellaSolaLettura = (colonne, righe) => `
     <div class="scroll-tab"><table>
@@ -1090,37 +1192,78 @@ SCHERMATE.relazione = function () {
     </table></div>`;
 
   let corpo;
-  if (scheda === 'generali') {
-    corpo = `<div style="flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-content:start">${colonne}</div>`;
+  if (scheda === 'rumore' || scheda === 'vibrazioni') {
+    corpo = modulo(scheda, automatici(scheda));
   } else if (scheda === 'dpi') {
     corpo = tabellaSolaLettura(dati.colonne_dpi, dati.tabella_dpi);
   } else if (scheda === 'heg') {
     corpo = tabellaSolaLettura(dati.colonne_heg, dati.tabella_HEG);
-  } else {
+  } else if (scheda === 'vib') {
     corpo = tabellaSolaLettura(dati.colonne_vib, dati.tabella_vibrazioni);
+  } else {
+    corpo = modulo('comuni', notaQuadro);
   }
 
   const linguetta = (chiave, etichetta) =>
     `<button class="tabx${scheda === chiave ? ' on' : ''}" data-scheda-relazione="${chiave}">${etichetta}</button>`;
 
+  const pulsante = (ramo, etichetta, icona) => {
+    const spento = r.inCorso || !relazionePronta(ramo);
+    return `<button class="btn ${ramo === 'entrambe' ? 'btn-primary' : 'btn-secondary'}"
+      data-genera-relazione="${ramo}"${spento ? ' disabled' : ''}
+      title="${esc(motivoRelazione(ramo))}"><i class="ph ${icona}"></i>${etichetta}</button>`;
+  };
+
+  const classeAvviso = r.esito === 'ok' ? ' ok' : r.esito === 'errore' ? ' errore' : '';
+  const icona = r.inCorso ? 'ph ph-circle-notch' : 'ph-fill ph-warning-circle';
+
   return `
   ${bandaMessaggio()}
   ${intestazione('Dati per la relazione',
-      `Modello <span class="mono">${esc(nomeBase(S.config.modello_relazione_rumore) || '—')}</span>`,
-      `<div style="display:flex;gap:6px">
+      `${(dati.tabella_HEG || []).length} gruppi · ${(dati.tabella_dpi || []).length} DPI`,
+      `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
         <button class="btn btn-secondary" data-azione="carica-preset"><i class="ph ph-upload-simple"></i>Carica</button>
         <button class="btn btn-secondary" data-azione="salva-preset"><i class="ph ph-floppy-disk"></i>Salva</button>
-        <button class="btn btn-primary" data-azione="genera-documento"><i class="ph ph-file-doc"></i>Genera documento</button>
+        ${pulsante('rumore', 'Rumore', 'ph-speaker-high')}
+        ${pulsante('vibrazioni', 'Vibrazioni', 'ph-waveform')}
+        ${pulsante('entrambe', 'Entrambe', 'ph-files')}
       </div>`)}
 
-  ${r.messaggio ? `<div class="avviso"><i class="ph-fill ph-warning-circle"></i><div>${esc(r.messaggio)}</div></div>` : ''}
+  ${r.messaggio ? `<div class="avviso${classeAvviso}"><i class="${icona}"></i><div>${esc(r.messaggio)}</div></div>` : ''}
 
-  <div style="display:flex;gap:2px;border-bottom:1px solid var(--color-divider)">
-    ${linguetta('generali', 'Dati generali')}${linguetta('dpi', 'Tabella DPI')}
-    ${linguetta('heg', 'Tabella HEG')}${linguetta('vib', 'Tabella vibrazioni')}
+  <div style="display:flex;gap:2px;border-bottom:1px solid var(--color-divider);flex-wrap:wrap">
+    ${linguetta('generali', 'Dati generali')}
+    ${ramoPresente('rumore') ? linguetta('rumore', 'Dati rumore') : ''}
+    ${ramoPresente('vibrazioni') ? linguetta('vibrazioni', 'Dati vibrazioni') : ''}
+    ${linguetta('dpi', 'Tabella DPI')}${linguetta('heg', 'Tabella HEG')}
+    ${linguetta('vib', 'Tabella vibrazioni')}
   </div>
   ${corpo}`;
 };
+
+/* Il ramo esiste nella cartella di lavoro? */
+function ramoPresente(ramo) {
+  return !!(S.scansione && S.scansione[ramo] && S.scansione[ramo].presente);
+}
+
+/* Si puo' scrivere la relazione di questo ramo (o di entrambi)? */
+function relazionePronta(ramo) {
+  const rami = ramo === 'entrambe' ? ['rumore', 'vibrazioni'] : [ramo];
+  return rami.every((x) => ramoPresente(x)
+    && ((S.relazione.stato || {})[x] || {}).disponibile);
+}
+
+/* Perche' il pulsante e' spento: finisce nel title, non serve una riga in piu'. */
+function motivoRelazione(ramo) {
+  if (S.relazione.inCorso) return 'scrittura in corso';
+  const rami = ramo === 'entrambe' ? ['rumore', 'vibrazioni'] : [ramo];
+  for (const x of rami) {
+    if (!ramoPresente(x)) return `${x}: ramo assente nella cartella di lavoro`;
+    const st = (S.relazione.stato || {})[x] || {};
+    if (!st.disponibile) return `${x}: ${st.messaggio || 'non disponibile'}`;
+  }
+  return 'scrive il documento nella cartella output del ramo';
+}
 
 // ---------------------------------------------------------------------------
 // Caricamenti
@@ -1151,6 +1294,8 @@ async function caricaRisultatiVibrazioni() {
 
 async function caricaRelazione() {
   S.relazione.dati = await chiama('relazione_dati', { campi: S.relazione.campi });
+  S.relazione.stato = S.relazione.dati.stato || {};
+  S.frontespizi = S.relazione.dati.frontespizi || S.frontespizi;
 }
 
 async function ricaricaTutto() {
@@ -1291,7 +1436,24 @@ suClic('[data-azione="pulisci-log"]', () => { S.esecuzione.righe = []; disegna()
 
 // ---- relazione ----
 suClic('[data-scheda-relazione]', (nodo) => { S.relazione.scheda = nodo.dataset.schedaRelazione; disegna(); });
-suInput('[data-campo-relazione]', (nodo) => { S.relazione.campi[nodo.dataset.campoRelazione] = nodo.value; });
+
+function impostaCampoRelazione(nodo) {
+  const chiave = nodo.dataset.campoRelazione;
+  S.relazione.campi[chiave] = nodo.type === 'checkbox' ? nodo.checked : nodo.value;
+}
+
+// 'input' copre testo e textarea, 'change' caselle e menu: scrivono lo stesso
+// valore, quindi ripetersi su un select non fa danno
+suInput('[data-campo-relazione]', impostaCampoRelazione);
+suModifica('[data-campo-relazione]', impostaCampoRelazione);
+
+suClic('[data-azione="scegli-logo"]', async () => {
+  await apriModale('file', S.relazione.campi.logo_azienda || S.root,
+    'Logo aziendale', async (percorso) => {
+      S.relazione.campi.logo_azienda = percorso;
+      disegna();
+    });
+});
 
 suClic('[data-azione="salva-preset"]', async () => {
   const nome = nomeBase(S.scansione && S.scansione.root) || 'preset';
@@ -1312,9 +1474,26 @@ suClic('[data-azione="carica-preset"]', async () => {
   disegna();
 });
 
-suClic('[data-azione="genera-documento"]', async () => {
-  const esito = await chiama('relazione_genera', { campi: S.relazione.campi });
-  S.relazione.messaggio = esito.messaggio || '';
+suClic('[data-genera-relazione]', async (nodo) => {
+  const ramo = nodo.dataset.generaRelazione;
+  const esito = await chiama('relazione_genera', { ramo, campi: S.relazione.campi });
+  if (!esito.ok) {
+    S.relazione.messaggio = esito.messaggio || 'Scrittura non avviata.';
+    S.relazione.esito = 'errore';
+    disegna();
+    return;
+  }
+  // l'esito vero arriva sul canale degli eventi: qui si segna solo l'attesa
+  S.relazione.inCorso = true;
+  S.relazione.esito = '';
+  S.relazione.messaggio = `Scrittura in corso: ${(esito.rami || []).join(' e ')}…`;
+  disegna();
+});
+
+// ---- tema ----
+suClic('[data-azione="tema"]', async () => {
+  S.config.tema = applicaTema(S.config.tema === 'chiaro' ? 'scuro' : 'chiaro');
+  await chiama('salva_parametri', { config: { tema: S.config.tema } });
   disegna();
 });
 
@@ -1396,6 +1575,17 @@ async function riceviEvento(evento) {
       aggiungiRiga(evento.livello, evento.msg);
       break;
 
+    case 'relazione':
+      if (evento.fase === 'fine') {
+        S.relazione.inCorso = false;
+        S.relazione.messaggio = evento.messaggio || '';
+        S.relazione.esito = evento.ok ? 'ok' : 'errore';
+        if (evento.stato) S.relazione.stato = evento.stato;
+        aggiungiRiga(evento.ok ? 'info' : 'error',
+          `Relazione · ${evento.messaggio || ''}`);
+      }
+      break;
+
     case 'finestra':
       // la barra del titolo ha cambiato misura: succede entrando e uscendo
       // dallo schermo intero
@@ -1435,12 +1625,14 @@ async function inizializza() {
   S.parametriRumore = stato.parametri_rumore || {};
   S.parametriVibrazioni = stato.parametri_vibrazioni || {};
   S.recenti = stato.recenti || [];
-  S.campiRelazione = stato.campi_relazione || [];
-  S.layoutRelazione = stato.layout_relazione || [];
+  S.campiRelazione = stato.campi_relazione || {};
+  S.layoutRelazione = stato.layout_relazione || {};
+  S.frontespizi = stato.frontespizi || {};
   S.passiPerModalita = stato.passi || {};
-  S.relazione.messaggio = (stato.relazione || {}).messaggio || '';
+  S.relazione.stato = stato.relazione || {};
   S.modalita = S.config.modalita || 'rumore';
   S.root = S.config.ultima_root || '';
+  S.config.tema = applicaTema(S.config.tema);
   applicaMisureFinestra(stato.finestra);
 
   disegna();

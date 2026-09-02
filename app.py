@@ -18,6 +18,7 @@ USO: python app.py [cartella_azienda]
 import json
 import os
 import sys
+import threading
 import traceback
 
 from PyQt5.QtCore import (QEvent, QFile, QIODevice, QObject, QRect, Qt, QUrl,
@@ -71,6 +72,9 @@ class Ponte(QObject):
         self.finestra = finestra
         self.esecuzione = esecuzione.Esecuzione(self._inoltra_evento)
         self.scansione = {}
+        # la scrittura dei .docx gira in un thread: il sottoprocesso dura
+        # qualche secondo e bloccarci l'interfaccia la farebbe sembrare morta
+        self.relazione_in_corso = False
 
     # ------------------------------------------------------------------
     def _inoltra_evento(self, evento):
@@ -126,10 +130,13 @@ class Ponte(QObject):
             'cartella_config': configurazione.cartella_config(),
             'finestra': self.finestra.misure_barra,
             'preset_relazione': configurazione.preset_relazione(),
-            'relazione': generatore.stato(
-                configurazione.percorso_modello('modello_relazione_rumore'), ''),
-            'campi_relazione': contesto_relazione.CAMPI_GENERALI,
-            'layout_relazione': contesto_relazione.LAYOUT_GENERALI,
+            'relazione': {ramo: self._stato_relazione(ramo)
+                          for ramo in ('rumore', 'vibrazioni')},
+            'campi_relazione': {blocco: contesto_relazione.elenco_campi([blocco])
+                                for blocco in ('comuni', 'rumore', 'vibrazioni')},
+            'layout_relazione': contesto_relazione.LAYOUT,
+            'frontespizi': {ramo: configurazione.frontespizi_disponibili(ramo)
+                            for ramo in ('rumore', 'vibrazioni')},
             'passi': {m: elenco_passi.passi_di(m)
                       for m in ('rumore', 'vibrazioni', 'combinato')},
         }
@@ -314,14 +321,52 @@ class Ponte(QObject):
         return {'ok': self.esecuzione.interrompi()}
 
     # ---- relazione ----------------------------------------------------
+    CHIAVE_MODELLO = {'rumore': 'modello_relazione_rumore',
+                      'vibrazioni': 'modello_relazione_vibrazioni'}
+    NOME_DOCUMENTO = {'rumore': 'Relazione_RUM.docx',
+                      'vibrazioni': 'Relazione_VIB.docx'}
+
+    def _frontespizio(self, ramo, campi=None):
+        """
+        Percorso del frontespizio del ramo.
+
+        Il nome puo' arrivare dal modulo della relazione (dove si sceglie fra i
+        file trovati nella cartella del ramo) oppure, se li' non c'e', dalla
+        configurazione, dove sta come 'RUM/nome.docx'.
+        """
+        chiave = f'frontespizio_{ramo}'
+        nome = str((campi or {}).get(chiave, '') or '').strip()
+        if not nome:
+            nome = configurazione.config().get(chiave, '')
+        if not nome:
+            return ''
+        if os.path.isabs(nome):
+            return nome
+        if os.sep in nome:
+            return configurazione.percorso_frontespizio(nome)
+        return os.path.join(configurazione.cartella_frontespizi(ramo), nome)
+
+    def _uscita(self, ramo):
+        """Percorso predefinito del documento del ramo."""
+        cartella = self.scansione.get(ramo, {}).get('output', '')
+        return os.path.join(cartella, self.NOME_DOCUMENTO[ramo]) if cartella else ''
+
+    def _stato_relazione(self, ramo, campi=None):
+        stato = generatore.stato(
+            configurazione.percorso_modello(self.CHIAVE_MODELLO[ramo]),
+            self._frontespizio(ramo, campi), self._uscita(ramo))
+        stato['presente'] = bool(self.scansione.get(ramo, {}).get('presente'))
+        stato['uscita'] = self._uscita(ramo)
+        return stato
+
     def _azione_relazione_dati(self, dati):
         """Tabelle precompilate dai risultati dell'analisi."""
+        campi = dati.get('campi', {})
         rumore = self._azione_risultati_rumore({})
         vibrazioni = self._azione_risultati_vibrazioni({})
         lettura = schede.leggi(self.scansione.get('scheda', ''))
         contesto = contesto_relazione.costruisci(
-            dati.get('campi', {}), rumore.get('gruppi', []),
-            vibrazioni.get('gruppi', []),
+            campi, rumore.get('gruppi', []), vibrazioni.get('gruppi', []),
             lettura['dpi']['righe'], lettura['dpi']['colonne'])
         return {
             'tabella_dpi': contesto['tabella_dpi'],
@@ -331,6 +376,10 @@ class Ponte(QObject):
             'colonne_dpi': contesto_relazione.COLONNE_TABELLA_DPI,
             'colonne_heg': contesto_relazione.COLONNE_TABELLA_HEG,
             'colonne_vib': contesto_relazione.COLONNE_TABELLA_VIB,
+            'stato': {ramo: self._stato_relazione(ramo, campi)
+                      for ramo in ('rumore', 'vibrazioni')},
+            'frontespizi': {ramo: configurazione.frontespizi_disponibili(ramo)
+                            for ramo in ('rumore', 'vibrazioni')},
         }
 
     def _azione_relazione_preset(self, dati):
@@ -345,24 +394,93 @@ class Ponte(QObject):
             return {'ok': True, 'dati': configurazione.leggi_preset_relazione(nome)}
         return {'errore': f'Operazione sconosciuta: {operazione}'}
 
+    def _configurazione_relazione(self, ramo, campi):
+        """Configurazione del runner della relazione, per un ramo."""
+        cfg = configurazione.config()
+        parti = self.scansione.get(ramo, {})
+        comune = {
+            'ramo': ramo,
+            'main': parti.get('main', ''),
+            'misure': parti.get('misure', ''),
+            'output': parti.get('output', ''),
+            'scheda': self.scansione.get('scheda', ''),
+            'template': configurazione.percorso_modello(self.CHIAVE_MODELLO[ramo]),
+            'frontespizio': self._frontespizio(ramo, campi),
+            'logo': (campi.get('logo_azienda') or cfg.get('logo_azienda', '')),
+            'uscita': self._uscita(ramo),
+            'campi': campi,
+        }
+        if ramo == 'rumore':
+            comune.update({'percorso_vrr': cfg['percorso_vrr'],
+                           'parametri': configurazione.parametri_rumore()})
+        else:
+            comune.update({'percorso_vrv': cfg['percorso_vrv'],
+                           'file': parti.get('file', {}),
+                           'parametri': configurazione.parametri_vibrazioni()})
+        return comune
+
     def _azione_relazione_genera(self, dati):
-        template = (dati.get('template')
-                    or configurazione.percorso_modello('modello_relazione_rumore'))
-        uscita = dati.get('output', '')
-        rumore = self._azione_risultati_rumore({})
-        vibrazioni = self._azione_risultati_vibrazioni({})
-        lettura = schede.leggi(self.scansione.get('scheda', ''))
-        contesto = contesto_relazione.costruisci(
-            dati.get('campi', {}), rumore.get('gruppi', []),
-            vibrazioni.get('gruppi', []),
-            lettura['dpi']['righe'], lettura['dpi']['colonne'])
+        """
+        Avvia la scrittura di una relazione, dell'altra o di tutte e due.
+
+        Ritorna appena il thread e' partito: l'avanzamento arriva alla pagina
+        sul canale degli eventi, come per l'analisi, e l'esito con un evento
+        'relazione' di fase 'fine'.
+        """
+        richiesto = dati.get('ramo', 'rumore')
+        rami = ['rumore', 'vibrazioni'] if richiesto == 'entrambe' else [richiesto]
+        if any(ramo not in ('rumore', 'vibrazioni') for ramo in rami):
+            return {'ok': False, 'messaggio': f'Ramo sconosciuto: {richiesto}'}
+        if not self.scansione.get('valida'):
+            return {'ok': False,
+                    'messaggio': 'Seleziona prima una cartella di lavoro valida.'}
+        if self.relazione_in_corso:
+            return {'ok': False, 'messaggio': 'Una scrittura e\' gia\' in corso.'}
+
+        mancanti = [r for r in rami
+                    if not self.scansione.get(r, {}).get('presente')]
+        if mancanti:
+            return {'ok': False,
+                    'messaggio': f'Rami assenti nella cartella di lavoro: '
+                                 f'{", ".join(mancanti)}'}
+
+        self.relazione_in_corso = True
+        threading.Thread(target=self._scrivi_relazioni,
+                         args=(rami, dati.get('campi', {})), daemon=True).start()
+        return {'ok': True, 'avviata': True, 'rami': rami}
+
+    def _scrivi_relazioni(self, rami, campi):
+        """
+        Corpo del thread di scrittura.
+
+        Con due rami, quello che fallisce non ferma l'altro: un documento
+        scritto resta scritto, e i due esiti vengono riportati separati.
+        """
+        esiti = {}
         try:
-            percorso = generatore.genera(contesto, template, uscita)
-        except NotImplementedError as errore:
-            return {'ok': False, 'messaggio': str(errore), 'stub': True}
+            self._inoltra_evento({'tipo': 'relazione', 'fase': 'inizio',
+                                  'rami': rami})
+            for ramo in rami:
+                esiti[ramo] = generatore.genera(
+                    self._configurazione_relazione(ramo, campi),
+                    su_evento=self._inoltra_evento)
         except Exception as errore:
-            return {'ok': False, 'messaggio': str(errore)}
-        return {'ok': True, 'messaggio': f'Documento scritto: {percorso}'}
+            traceback.print_exc()
+            esiti['errore'] = {'ok': False, 'documento': '',
+                               'messaggio': f'{type(errore).__name__}: {errore}'}
+        finally:
+            self.relazione_in_corso = False
+
+        ok = bool(esiti) and all(e['ok'] for e in esiti.values())
+        self._inoltra_evento({
+            'tipo': 'relazione', 'fase': 'fine', 'ok': ok,
+            'messaggio': ' · '.join(f'{ramo}: {e["messaggio"]}'
+                                    for ramo, e in esiti.items()),
+            'documenti': {r: e['documento'] for r, e in esiti.items()
+                          if e.get('documento')},
+            'stato': {ramo: self._stato_relazione(ramo, campi)
+                      for ramo in ('rumore', 'vibrazioni')},
+        })
 
 
 class Finestra(QMainWindow):

@@ -28,6 +28,9 @@ CARTELLA_RELAZIONE = 'relazione'
 
 MAX_PROGETTI_RECENTI = 12
 
+# sottocartella dei frontespizi per ramo
+SOTTOCARTELLA_FRONTESPIZI = {'rumore': 'RUM', 'vibrazioni': 'VIB'}
+
 # Valori di riferimento presi dai due backend. Servono come default al primo
 # avvio: da quel momento in poi fa fede il contenuto della directory di config.
 DEFAULT_RUMORE = {
@@ -78,10 +81,20 @@ DEFAULT_CONFIG = {
         os.path.dirname(os.path.dirname(_CODICI)), 'Ermes', 'Modelli'),
     'cartella_lavori': os.path.join(
         os.path.dirname(os.path.dirname(_CODICI)), 'Ermes', 'Lavori'),
-    'modello_relazione_rumore': 'docx/Modello_Relazione_RUM_v2.docx',
-    'modello_relazione_vibrazioni': 'docx/Modello_Relazione_VIB.docx',
+    # modelli gia' corretti dalle utility fix_template_*.py dei due backend:
+    # sono quelli che i write_docx si aspettano, con i tag Jinja al posto giusto
+    'modello_relazione_rumore': 'docx/strutture/Modello_RUM.docx',
+    'modello_relazione_vibrazioni': 'docx/strutture/Modello_VIB.docx',
+    # frontespizi: una sottocartella per ramo, il nome del file si sceglie
+    # dalla schermata della relazione
+    'cartella_frontespizi': 'docx/frontespizi',
+    'frontespizio_rumore': 'RUM/frontespizio_Relyon_RUM.docx',
+    'frontespizio_vibrazioni': 'VIB/frontespizio_Relyon_VIB.docx',
+    # logo aziendale: vuoto significa campo lasciato vuoto nel documento
+    'logo_azienda': '',
     'ultima_root': '',
     'modalita': 'rumore',
+    'tema': 'scuro',
     # posizione e dimensione dell'ultima finestra: [x, y, larghezza, altezza]
     'geometria_finestra': [],
     'finestra_massimizzata': False,
@@ -137,8 +150,26 @@ def scrivi(nome, dati):
     return percorso
 
 
+# Valori di 'modello_relazione_*' scritti dalle versioni precedenti: puntavano
+# a modelli senza i tag Jinja, che i write_docx dei backend non sanno compilare.
+# Vanno sostituiti una volta sola, senza toccare le scelte fatte dall'utente.
+MODELLI_SUPERATI = {
+    'modello_relazione_rumore': ('docx/Modello_Relazione_RUM_v2.docx',),
+    'modello_relazione_vibrazioni': ('docx/Modello_Relazione_VIB.docx',),
+}
+
+
 def config():
-    return leggi(CONFIG, DEFAULT_CONFIG)
+    """Configurazione corrente, con i modelli superati gia' aggiornati."""
+    cfg = leggi(CONFIG, DEFAULT_CONFIG)
+    cambiata = False
+    for chiave, superati in MODELLI_SUPERATI.items():
+        if cfg.get(chiave) in superati:
+            cfg[chiave] = DEFAULT_CONFIG[chiave]
+            cambiata = True
+    if cambiata:
+        scrivi(CONFIG, cfg)
+    return cfg
 
 
 def parametri_rumore():
@@ -196,3 +227,41 @@ def percorso_modello(chiave):
     if os.path.isabs(relativo):
         return relativo
     return os.path.join(cfg.get('cartella_modelli', ''), relativo)
+
+
+def cartella_frontespizi(ramo=''):
+    """
+    Percorso assoluto della cartella dei frontespizi, per ramo.
+
+    INPUT:  ramo - 'rumore', 'vibrazioni' oppure '' per la cartella radice
+    OUTPUT: percorso assoluto (anche se la cartella non esiste)
+    """
+    cfg = config()
+    base = cfg.get('cartella_frontespizi', '')
+    if not os.path.isabs(base):
+        base = os.path.join(cfg.get('cartella_modelli', ''), base)
+    return os.path.join(base, SOTTOCARTELLA_FRONTESPIZI.get(ramo, '')) if ramo else base
+
+
+def frontespizi_disponibili(ramo):
+    """Elenco dei file .docx presenti nella cartella dei frontespizi del ramo."""
+    cartella = cartella_frontespizi(ramo)
+    if not os.path.isdir(cartella):
+        return []
+    return sorted(n for n in os.listdir(cartella)
+                  if n.lower().endswith('.docx') and not n.startswith('~$'))
+
+
+def percorso_frontespizio(nome):
+    """
+    Percorso assoluto di un frontespizio a partire dal nome salvato in config.
+
+    Il nome puo' essere gia' assoluto, oppure relativo alla cartella dei
+    frontespizi ('RUM/frontespizio_Relyon_RUM.docx' o il solo nome del file
+    quando il ramo lo si sceglie dall'interfaccia).
+    """
+    if not nome:
+        return ''
+    if os.path.isabs(nome):
+        return nome
+    return os.path.join(cartella_frontespizi(), nome)

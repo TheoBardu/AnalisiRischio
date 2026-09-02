@@ -2,56 +2,174 @@
 """
 Costruzione del contesto per la relazione Word.
 
-I nomi dei campi ricalcano quelli gia' usati da VRR/utility/write_docx.py, che
-compila il modello con docxtpl: cosi' i modelli esistenti continuano a valere.
+I nomi dei campi ricalcano quelli dei due write_docx dei backend
+(VRR/utility/write_docx_Rumore.py e VRV/utility/write_docx_vib.py), che
+compilano i modelli con docxtpl: cosi' i modelli esistenti continuano a valere.
 
-Le due tabelle che il vecchio script lasciava da compilare a mano - un commento
-nel file suggeriva di prenderle dai fogli excel - qui vengono precompilate dai
-risultati dell'analisi: tabella_HEG dal riepilogo del rumore e tabella_dpi dal
-foglio Scheda_DPI.
+I campi sono divisi in tre blocchi, come la SEZIONE 1 dei due script:
+    comuni      - anagrafica e testi che compaiono identici in entrambi i modelli
+    rumore      - metodo adottato, orari, colonne del quadro sinottico
+    vibrazioni  - orario di lavoro e frontespizio del ramo
+
+Le tabelle che i vecchi script lasciavano da compilare a mano qui vengono
+precompilate dai risultati dell'analisi: tabella_HEG dal riepilogo del rumore,
+tabella_dpi dal foglio Scheda_DPI e tabella_vibrazioni dalle schede A(8).
 """
 
-# I campi del modulo: sono il riflesso dei segnaposto del modello .docx, e i
-# nomi delle chiavi devono restare quelli che il modello si aspetta.
+# Testi predefiniti: sono esattamente quelli della SEZIONE 1 dei due backend,
+# cosi' un progetto nuovo parte compilato come partiva prima a mano.
+TESTO_OTOTOSSICHE = ('Si faccia riferimento al documento di valutazione del '
+                     'rischio chimico.')
+TESTO_VIB_RUM = ('Certamente si considerato l’utilizzo di attrezzature '
+                 'elettriche portatili. Vi è dunque trasmissione ossea delle '
+                 'vibrazioni e del rumore all’orecchio medio. Si faccia '
+                 'riferimento alla valutazione del rischio chimico.')
+TESTO_EFFETTI = ('Nelle zone/postazioni di lavoro è possibile che gli addetti '
+                 'possano incorrere in tali situazioni. Si consiglia pertanto di '
+                 'utilizzare D.P.I. con grado di protezione SNR come prescritto '
+                 'dalla presente relazione e l’adozione di sistemi '
+                 'alternativi quali segnali oto-acustici.')
+ORARIO_RUMORE = 'Lunedì – Venerdì \n 8:00÷12:00 13:00÷17:00'
+ORARIO_VIBRAZIONI = 'Lunedì – Venerdì  8:00÷12:00  13:00÷17:00'
+
+# I campi del modulo: sono il riflesso dei segnaposto dei modelli .docx, e i
+# nomi delle chiavi devono restare quelli che i modelli si aspettano.
+#   tipo      - 'testo' (default), 'testolungo', 'sino', 'flag', 'scelta', 'file'
+#   valore    - valore predefinito
 #   mono      - campo da mostrare in monospazio, perche' contiene numeri o date
 #   larghezza - larghezza fissa, per i campi molto corti
-CAMPI_GENERALI = [
-    {'chiave': 'nome_azienda', 'etichetta': 'nome_azienda', 'gruppo': 'Azienda'},
-    {'chiave': 'indirizzo_azienda', 'etichetta': 'indirizzo_azienda', 'gruppo': 'Azienda'},
-    {'chiave': 'attivita_azienda', 'etichetta': 'attivita_azienda', 'gruppo': 'Azienda'},
-    {'chiave': 'datore_di_lavoro', 'etichetta': 'datore_di_lavoro', 'gruppo': 'Figure responsabili'},
-    {'chiave': 'RSPP', 'etichetta': 'RSPP', 'gruppo': 'Figure responsabili'},
-    {'chiave': 'medico_competente', 'etichetta': 'medico_competente', 'gruppo': 'Figure responsabili'},
-    {'chiave': 'RLS', 'etichetta': 'RLS', 'gruppo': 'Figure responsabili'},
-    {'chiave': 'revisione', 'etichetta': 'revisione', 'gruppo': 'Documento', 'mono': True},
-    {'chiave': 'data_revisione', 'etichetta': 'data_revisione', 'gruppo': 'Documento', 'mono': True},
-    {'chiave': 'data_scadenza', 'etichetta': 'data_scadenza', 'gruppo': 'Documento', 'mono': True},
-    {'chiave': 'motivo_revisione', 'etichetta': 'motivo_revisione', 'gruppo': 'Documento'},
-    {'chiave': 'giornate', 'etichetta': 'giornate', 'gruppo': 'Misurazioni',
-     'mono': True, 'larghezza': '90px'},
-    {'chiave': 'date_misurazione', 'etichetta': 'date_misurazione', 'gruppo': 'Misurazioni'},
-    {'chiave': 'strumentazione', 'etichetta': 'strumentazione', 'gruppo': 'Misurazioni'},
+CAMPI_COMUNI = [
+    {'chiave': 'nome_azienda', 'gruppo': 'Azienda'},
+    {'chiave': 'indirizzo_azienda', 'gruppo': 'Azienda'},
+    {'chiave': 'attivita_azienda', 'gruppo': 'Azienda'},
+    {'chiave': 'sede_legale', 'gruppo': 'Azienda'},
+    {'chiave': 'sede_operativa', 'gruppo': 'Azienda'},
+    {'chiave': 'processo_produttivo', 'gruppo': 'Azienda', 'tipo': 'testolungo'},
+
+    {'chiave': 'datore_di_lavoro', 'gruppo': 'Figure responsabili'},
+    {'chiave': 'RSPP', 'gruppo': 'Figure responsabili'},
+    {'chiave': 'medico_competente', 'gruppo': 'Figure responsabili'},
+    {'chiave': 'RLS', 'gruppo': 'Figure responsabili'},
+    {'chiave': 'delegato_sicurezza', 'gruppo': 'Figure responsabili'},
+
+    {'chiave': 'revisione', 'gruppo': 'Documento', 'mono': True, 'valore': 'rev.01'},
+    {'chiave': 'data_emissione', 'gruppo': 'Documento', 'mono': True},
+    {'chiave': 'data_scadenza', 'gruppo': 'Documento', 'mono': True},
+    {'chiave': 'motivo_revisione', 'gruppo': 'Documento'},
+
+    {'chiave': 'giornate', 'gruppo': 'Misurazioni', 'mono': True, 'larghezza': '90px'},
+    {'chiave': 'date_misurazione', 'gruppo': 'Misurazioni'},
+    {'chiave': 'strumentazione', 'gruppo': 'Misurazioni'},
+
+    {'chiave': 'sostanze_ototossiche', 'gruppo': 'Ototossici e interazioni',
+     'tipo': 'sino', 'valore': 'Si'},
+    {'chiave': 'misure_attuative_ototossiche', 'gruppo': 'Ototossici e interazioni',
+     'tipo': 'testolungo', 'valore': TESTO_OTOTOSSICHE},
+    {'chiave': 'interazione_vib_rum', 'gruppo': 'Ototossici e interazioni',
+     'tipo': 'sino', 'valore': 'Si'},
+    {'chiave': 'misure_attuative_vib_rum', 'gruppo': 'Ototossici e interazioni',
+     'tipo': 'testolungo', 'valore': TESTO_VIB_RUM},
+    {'chiave': 'effetti_indesiderati', 'gruppo': 'Ototossici e interazioni',
+     'tipo': 'sino', 'valore': 'Si'},
+    {'chiave': 'misure_attuative_effetti_indesiderati',
+     'gruppo': 'Ototossici e interazioni', 'tipo': 'testolungo', 'valore': TESTO_EFFETTI},
+
+    {'chiave': 'logo_azienda', 'gruppo': 'Logo', 'tipo': 'file',
+     'etichetta': 'logo_azienda (vuoto = nessun logo)'},
 ]
 
-# Disposizione del modulo, ricalcata dal mockup: due colonne, i gruppi uno
+CAMPI_RUMORE = [
+    {'chiave': 'base_giornaliera', 'gruppo': 'Metodo adottato', 'tipo': 'testolungo'},
+    {'chiave': 'base_settimanale', 'gruppo': 'Metodo adottato', 'tipo': 'testolungo'},
+    {'chiave': 'esposizioni_variabili', 'gruppo': 'Metodo adottato', 'tipo': 'testolungo'},
+
+    {'chiave': 'orari_uguali_per_tutti', 'gruppo': 'Orario di lavoro', 'tipo': 'flag',
+     'valore': True, 'etichetta': 'orari uguali per tutte le mansioni'},
+    {'chiave': 'orario_lavoro_default', 'gruppo': 'Orario di lavoro',
+     'tipo': 'testolungo', 'valore': ORARIO_RUMORE},
+
+    {'chiave': 'ototossici_default', 'gruppo': 'Colonne del quadro sinottico',
+     'tipo': 'sino', 'valore': 'NO',
+     'etichetta': 'ototossici (colonna non presente negli excel)'},
+    {'chiave': 'impulsivi_default', 'gruppo': 'Colonne del quadro sinottico',
+     'tipo': 'sino', 'valore': 'NO',
+     'etichetta': 'rumori impulsivi (colonna non presente negli excel)'},
+
+    {'chiave': 'frontespizio_rumore', 'gruppo': 'Documento', 'tipo': 'scelta',
+     'etichetta': 'frontespizio'},
+]
+
+CAMPI_VIBRAZIONI = [
+    {'chiave': 'orario_lavoro', 'gruppo': 'Orario di lavoro',
+     'tipo': 'testolungo', 'valore': ORARIO_VIBRAZIONI},
+    {'chiave': 'frontespizio_vibrazioni', 'gruppo': 'Documento', 'tipo': 'scelta',
+     'etichetta': 'frontespizio'},
+]
+
+CAMPI = {'comuni': CAMPI_COMUNI, 'rumore': CAMPI_RUMORE,
+         'vibrazioni': CAMPI_VIBRAZIONI}
+
+# Disposizione dei moduli, ricalcata dal mockup: due colonne, i gruppi uno
 # sotto l'altro, e dentro ogni gruppo le righe di campi affiancati. Sta
-# separata da CAMPI_GENERALI perche' e' impaginazione, non contenuto del
-# documento: i campi che non compaiono qui vengono comunque disegnati in fondo.
-LAYOUT_GENERALI = [
+# separata dai campi perche' e' impaginazione, non contenuto del documento: i
+# campi che non compaiono qui vengono comunque disegnati in fondo.
+LAYOUT_COMUNI = [
     [   # colonna di sinistra
         {'nome': 'Azienda',
-         'righe': [['nome_azienda'], ['indirizzo_azienda'], ['attivita_azienda']]},
+         'righe': [['nome_azienda'], ['indirizzo_azienda'], ['attivita_azienda'],
+                   ['sede_legale'], ['sede_operativa'], ['processo_produttivo']]},
         {'nome': 'Figure responsabili',
-         'righe': [['datore_di_lavoro', 'RSPP'], ['medico_competente', 'RLS']]},
+         'righe': [['datore_di_lavoro', 'RSPP'], ['medico_competente', 'RLS'],
+                   ['delegato_sicurezza']]},
+        {'nome': 'Logo', 'righe': [['logo_azienda']]},
     ],
     [   # colonna di destra
         {'nome': 'Documento',
-         'righe': [['revisione', 'data_revisione', 'data_scadenza'],
+         'righe': [['revisione', 'data_emissione', 'data_scadenza'],
                    ['motivo_revisione']]},
         {'nome': 'Misurazioni',
          'righe': [['giornate', 'date_misurazione'], ['strumentazione']]},
+        {'nome': 'Ototossici e interazioni',
+         'righe': [['sostanze_ototossiche'], ['misure_attuative_ototossiche'],
+                   ['interazione_vib_rum'], ['misure_attuative_vib_rum'],
+                   ['effetti_indesiderati'],
+                   ['misure_attuative_effetti_indesiderati']]},
     ],
 ]
+
+LAYOUT_RUMORE = [
+    [
+        {'nome': 'Metodo adottato',
+         'righe': [['base_giornaliera'], ['base_settimanale'],
+                   ['esposizioni_variabili']]},
+    ],
+    [
+        {'nome': 'Orario di lavoro',
+         'righe': [['orari_uguali_per_tutti'], ['orario_lavoro_default']]},
+        {'nome': 'Colonne del quadro sinottico',
+         'righe': [['ototossici_default'], ['impulsivi_default']]},
+        {'nome': 'Documento', 'righe': [['frontespizio_rumore']]},
+    ],
+]
+
+LAYOUT_VIBRAZIONI = [
+    [
+        {'nome': 'Orario di lavoro', 'righe': [['orario_lavoro']]},
+    ],
+    [
+        {'nome': 'Documento', 'righe': [['frontespizio_vibrazioni']]},
+    ],
+]
+
+LAYOUT = {'comuni': LAYOUT_COMUNI, 'rumore': LAYOUT_RUMORE,
+          'vibrazioni': LAYOUT_VIBRAZIONI}
+
+# Chiavi che pilotano la scrittura invece di finire nel documento: il runner le
+# legge a parte, e docxtpl le ignorerebbe comunque.
+CHIAVI_CONTROLLO = ('orari_uguali_per_tutti', 'orario_lavoro_default',
+                    'ototossici_default', 'impulsivi_default',
+                    'frontespizio_rumore', 'frontespizio_vibrazioni',
+                    'logo_azienda')
 
 COLONNE_TABELLA_DPI = ['codice_DPI', 'descrizione', 'marca', 'modello',
                        'snr', 'H', 'L', 'M']
@@ -66,9 +184,30 @@ FRASE_PRESENZA = {
 }
 
 
-def campi_vuoti():
-    """Dizionario dei campi generali, tutti vuoti."""
-    return {campo['chiave']: '' for campo in CAMPI_GENERALI}
+def elenco_campi(blocchi=('comuni', 'rumore', 'vibrazioni')):
+    """Campi di piu' blocchi in un'unica lista, con l'etichetta sempre valorizzata."""
+    elenco = []
+    for blocco in blocchi:
+        for campo in CAMPI.get(blocco, []):
+            voce = dict(campo)
+            voce.setdefault('etichetta', voce['chiave'])
+            voce.setdefault('tipo', 'testo')
+            voce['blocco'] = blocco
+            elenco.append(voce)
+    return elenco
+
+
+def campi_vuoti(blocchi=('comuni', 'rumore', 'vibrazioni')):
+    """Dizionario dei campi con i valori predefiniti."""
+    return {campo['chiave']: campo.get('valore', '')
+            for campo in elenco_campi(blocchi)}
+
+
+def blocchi_di(ramo):
+    """Blocchi di campi che servono a un ramo. OUTPUT: tupla di nomi."""
+    if ramo in ('rumore', 'vibrazioni'):
+        return ('comuni', ramo)
+    return ('comuni', 'rumore', 'vibrazioni')
 
 
 def tabella_dpi(righe_dpi, colonne_dpi):
@@ -124,23 +263,29 @@ def tabella_vibrazioni(gruppi_vibrazioni):
 
 
 def costruisci(campi, gruppi_rumore=None, gruppi_vibrazioni=None,
-               righe_dpi=None, colonne_dpi=None):
+               righe_dpi=None, colonne_dpi=None, ramo=''):
     """
-    Contesto completo da passare al generatore.
+    Contesto delle anteprime e base del contesto docxtpl.
 
-    INPUT:  campi            - valori del modulo 'Dati generali'
+    Le tabelle vere del documento le ricostruiscono i backend dentro
+    runner/runner_relazione.py, leggendo gli excel con openpyxl per riprendersi
+    anche i colori delle celle: queste servono all'interfaccia, che le mostra in
+    sola lettura, e restano comunque nel contesto come ripiego.
+
+    INPUT:  campi            - valori dei moduli 'Dati generali'
             gruppi_rumore    - gruppi dalla sintesi del rumore
             gruppi_vibrazioni- gruppi dalla sintesi delle vibrazioni
             righe_dpi        - righe del foglio Scheda_DPI
+            ramo             - 'rumore', 'vibrazioni' o '' per tutti i campi
     OUTPUT: dizionario pronto per docxtpl
     """
     gruppi_rumore = gruppi_rumore or []
     gruppi_vibrazioni = gruppi_vibrazioni or []
 
-    contesto = dict(campi_vuoti())
+    contesto = dict(campi_vuoti(blocchi_di(ramo)))
     contesto.update({k: v for k, v in (campi or {}).items()})
 
-    # date_misurazione nel modello e' una lista: si accetta anche il testo
+    # date_misurazione nei modelli e' una lista: si accetta anche il testo
     # separato da virgole scritto nel modulo
     grezzo = contesto.get('date_misurazione', '')
     if isinstance(grezzo, str):

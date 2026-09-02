@@ -1,0 +1,84 @@
+/*
+ * Tema chiaro e colori di stato.
+ *
+ * Lo strato strutturale dell'interfaccia era gia' tutto a variabili: il tema
+ * chiaro si ottiene ridefinendo i pochi token del blocco :root di mockup.css,
+ * senza toccare nessuna regola dei componenti. Il tema scuro resta quello di
+ * partenza, invariato.
+ *
+ * Qui vivono anche i colori di stato - classi di rischio, avvisi, livelli di
+ * log, colonne delle misure - che prima stavano scritti a mano dentro app.css
+ * e dentro gli stili in linea di app.js: sono gli unici colori che il tema
+ * chiaro non puo' ereditare, perche' quei valori accesi su fondo bianco
+ * avrebbero un contrasto troppo basso.
+ */
+
+:root {
+  /* sfondo dietro alla finestra, quello della pagina */
+  --colore-fondo-pagina: #0f1119;
+
+  /* classi di rischio: gli stessi colori dei fogli excel e dei .docx */
+  --colore-classe-alta: #b22222;
+  --colore-classe-media: #00bfff;
+  --colore-classe-bassa: #32cd32;
+
+  /* stati: avviso, errore, conferma */
+  --colore-avviso: #febc2e;
+  --colore-errore: #b22222;
+  --colore-ok: #32cd32;
+
+  /* testo su fondo scuro, dove il colore pieno risulterebbe illeggibile */
+  --colore-testo-allerta: #ff8a80;
+  --colore-testo-ok: #8fe08f;
+
+  /* colonne delle misure singole */
+  --colore-colonna-u: #87ceeb;
+  --colore-colonna-leqa: #ffa07a;
+  --colore-colonna-ppeak: #ff4500;
+}
+
+/*
+ * Tema chiaro. Cambiano solo i token: fondo chiaro, testo scuro, e i colori
+ * di stato riportati a una luminosita' leggibile sul bianco (gli stessi toni,
+ * piu' scuri). Le ombre non si possono invertire meccanicamente - quelle
+ * scure nascono da un bordo chiaro piu' un alone nero - quindi hanno valori
+ * propri.
+ */
+:root[data-theme="chiaro"] {
+  --colore-fondo-pagina: #e8eaf2;
+
+  --color-bg: #f6f7fb;
+  --color-surface: #ffffff;
+  --color-text: #14151b;
+  --color-accent: #6255bd;
+  --color-accent-2: #7b74c4;
+  --color-divider: color-mix(in srgb, #14151b 18%, transparent);
+
+  /* barra del titolo e barra laterale: in scuro erano piu' chiare del fondo,
+     qui devono essere piu' scure */
+  --color-neutral-900: #e9ebf3;
+  /* testo della voce attiva, su fondo tinto d'accento */
+  --color-accent-200: #4a3f95;
+
+  --shadow-sm: 0 0 0 1px #cfd3e5;
+  --shadow-md: 0 0 0 1px #cfd3e5, 0 6px 18px rgba(20, 21, 27, 0.12);
+  --shadow-lg: 0 0 0 1px #b2b6ca, 0 16px 40px rgba(20, 21, 27, 0.18);
+
+  --colore-classe-alta: #a51c1c;
+  --colore-classe-media: #0a6ea8;
+  --colore-classe-bassa: #1f7a1f;
+
+  --colore-avviso: #a06400;
+  --colore-errore: #a51c1c;
+  --colore-ok: #1f7a1f;
+
+  --colore-testo-allerta: #b3241a;
+  --colore-testo-ok: #1f7a1f;
+
+  --colore-colonna-u: #1f6f9a;
+  --colore-colonna-leqa: #a4531c;
+  --colore-colonna-ppeak: #b83500;
+}
+
+/* mockup.css scrive il fondo pagina a mano: qui torna a essere un token */
+body { background: var(--colore-fondo-pagina); }

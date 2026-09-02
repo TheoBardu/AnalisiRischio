@@ -20,38 +20,19 @@ import logging
 import os
 import sys
 import time
-from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from runner import passi as elenco_passi
 from runner import protocollo
-from runner.protocollo import GestoreLog, Sequenza, carica_modulo, emetti, log
+from runner.protocollo import (GestoreLog, Sequenza, carica_modulo, emetti,
+                               log, parametri_backend)
 
 NOME_MISURE_VIB = 'misureVIB.xlsx'
 NOME_VR_VIB = 'VR_VIB.xlsx'
 NOME_RIEPILOGO_JSON = 'riepilogo_vibrazioni.json'
 
 COLORI_CLASSE = {'BASSA': '#32cd32', 'MEDIA': '#00bfff', 'ALTA': '#b22222'}
-
-
-def _parametri(modulo_parametri, sovrascritture):
-    """
-    Costruisce l'oggetto dei parametri da passare al backend.
-
-    analisi() e i writer di VRV ricevono il modulo parameters e ne leggono gli
-    attributi: va bene qualunque oggetto che li esponga. Si parte dai default
-    del backend e si sovrascrive con quanto arriva dall'interfaccia, senza
-    toccare il file parameters.py.
-    """
-    valori = {}
-    if modulo_parametri is not None:
-        for nome in dir(modulo_parametri):
-            if not nome.startswith('_'):
-                valori[nome] = getattr(modulo_parametri, nome)
-    valori.update({k: v for k, v in (sovrascritture or {}).items()
-                   if not k.startswith('_')})
-    return SimpleNamespace(**valori)
 
 
 def _classe_breve(testo):
@@ -136,7 +117,7 @@ def costruisci_passi(cfg, stato):
     except FileNotFoundError:
         parametri_vrv = carica_modulo(cartella_vrv, 'parameters_example')
 
-    par = _parametri(parametri_vrv, cfg.get('parametri', {}))
+    par = parametri_backend(parametri_vrv, cfg.get('parametri', {}))
     stato['par'] = par
 
     def preparazione():

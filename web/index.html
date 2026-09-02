@@ -6,6 +6,14 @@
 <title>Analisi Valutazione Rischio</title>
 <link rel="stylesheet" href="mockup.css">
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="tema.css">
+<script>
+  /* tema ricordato dall'ultima volta: si applica prima del primo disegno,
+     cosi' aprendo in tema chiaro non si vede il lampo di quello scuro */
+  try {
+    document.documentElement.dataset.theme = localStorage.getItem('tema') || 'scuro';
+  } catch (err) { /* niente memoria: si parte dal tema scuro */ }
+</script>
 </head>
 <body>
 

@@ -48,8 +48,12 @@ usa allo stesso modo.
   viene fatta prima, con il dettaglio per gruppo.
 - **Esegue in modo controllato**: Rumore, Vibrazioni oppure Combinato, con
   avanzamento per passo, log filtrabile e interruzione.
-- **Prepara i dati della relazione**: modulo, tabella DPI, tabella dei gruppi
-  omogenei e tabella A(8), precompilate dai risultati.
+- **Scrive le relazioni .docx**: dati generali comuni piu' una sezione per il
+  rumore e una per le vibrazioni; tabella DPI, tabella dei gruppi omogenei e
+  tabella A(8) precompilate dai risultati. Si genera solo il rumore, solo le
+  vibrazioni o tutte e due.
+- **Tema chiaro o scuro**: un interruttore in fondo alla barra laterale, la
+  scelta viene ricordata.
 
 ## Struttura
 
@@ -69,11 +73,13 @@ runner/
   protocollo.py             eventi JSON, cattura delle stampe dei backend
   runner_rumore.py          pipeline VRR
   runner_vibrazioni.py      pipeline VRV
+  runner_relazione.py       scrittura .docx con i write_docx dei backend
 relazione/
-  contesto.py               costruzione del contesto per il modello .docx
-  generatore.py             PUNTO DI ESTENSIONE: scrittura del documento
+  contesto.py               campi e contesto per i modelli .docx
+  generatore.py             avvio del runner della relazione e raccolta esiti
 web/
   index.html app.js app.css interfaccia
+  tema.css                  token dei colori di stato e tema chiaro
   mockup.css                stili estratti dal mockup (non modificare a mano)
   mockup.html               markup del mockup, riferimento per nuove schermate
 strumenti/                  estrazione asset, anteprima, prove
@@ -86,7 +92,7 @@ Tutto in **una sola directory**, `~/.analisirischio`
 
 | file | contenuto |
 |---|---|
-| `config.json` | percorsi di VRR e VRV, cartella dei modelli, ultima root aperta |
+| `config.json` | percorsi di VRR e VRV, modelli e frontespizi .docx, logo, tema, ultima root aperta |
 | `parametri_rumore.json` | `T0`, `u2m`, `u_pos`, versione firmware, limite Lex,8h |
 | `parametri_vibrazioni.json` | `C_P_HAV`, `C_P_WBV`, `C_S`, soglie, decimali, export PDF |
 | `progetti_recenti.json` | ultime cartelle aperte |
@@ -122,20 +128,56 @@ backend restano intatti.
 
 ## Relazione .docx
 
-L'interfaccia e' completa e i dati sono pronti; manca la scrittura del
-documento. Si implementa una sola funzione in `relazione/generatore.py`:
+Dalla schermata *Relazione Word* si scrive la relazione del rumore, quella
+delle vibrazioni o tutte e due. I dati si compilano in tre sezioni:
 
-```python
-def genera(contesto, template, output):
-    documento = DocxTemplate(template)
-    documento.render(contesto)
-    documento.save(output)
-    return output
-```
+- **Dati generali** - anagrafica, figure responsabili, date, ototossici e
+  interazioni: le chiavi che i due modelli hanno in comune;
+- **Dati rumore** - metodo adottato, orari di lavoro, colonne «ototossici» e
+  «rumori impulsivi» del quadro sinottico, frontespizio del ramo;
+- **Dati vibrazioni** - orario di lavoro e frontespizio del ramo.
 
-Poi si mette `DISPONIBILE = True` nello stesso file. Il contesto arriva gia'
-costruito da `relazione/contesto.py`, con `tabella_dpi`, `tabella_HEG` e
-`tabella_vibrazioni` popolate dai risultati.
+Tabelle DPI, gruppi omogenei ed esposizioni A(8) non si compilano: arrivano
+dai risultati dell'analisi e si vedono in sola lettura nelle tre linguette
+successive. I valori predefiniti dei campi sono quelli che i due `write_docx`
+dei backend avevano scritti nel codice, quindi un progetto nuovo parte gia'
+compilato. Salva/Carica conservano tutto in `~/.analisirischio/relazione/`.
+
+I documenti finiscono in `<ramo>/output/Relazione_RUM.docx` e
+`Relazione_VIB.docx`.
+
+### Perche' anche qui un runner separato
+
+`runner/runner_relazione.py` gira in un processo per ramo, per lo stesso
+motivo delle pipeline di calcolo: i due backend importano entrambi un modulo
+chiamato `config`, con contenuti diversi.
+
+I due script non sono richiamabili come sono:
+
+- `VRR/utility/write_docx_Rumore.py` non ha un `main()`: dalla «SEZIONE 3» in
+  poi il codice gira all'import e scrive un documento contro percorsi cablati.
+  Il runner ne carica quindi la sola testa, fino a quella sentinella, e
+  ottiene le funzioni di caricamento senza eseguirne il corpo.
+- `VRV/utility/write_docx_vib.py` ha un `main()`, ma legge i percorsi dai
+  propri globali e i parametri da `parameters.py`.
+
+In entrambi i casi il runner sovrascrive i globali dei percorsi con quelli che
+arrivano dall'interfaccia e ripete la sola unione dei dizionari. I due backend
+restano intatti.
+
+## Tema chiaro e scuro
+
+L'interruttore sta in fondo alla barra laterale, accanto a «Stato», e la
+scelta finisce in `config.json` (`tema`), con una copia in `localStorage` che
+la pagina legge prima del primo disegno per non far lampeggiare il tema
+sbagliato all'avvio.
+
+Il tema scuro e' il blocco `:root` di `mockup.css`, invariato; quello chiaro
+sta in `web/tema.css` e ridefinisce soltanto i token. Nello stesso file
+vivono i colori di stato - classi di rischio, avvisi, livelli di log, colonne
+delle misure - che prima stavano scritti a mano dentro `app.css` e negli stili
+in linea di `app.js`: sono gli unici che il tema chiaro non puo' ereditare,
+perche' quei valori accesi su fondo bianco non si leggerebbero.
 
 ## Strumenti
 
