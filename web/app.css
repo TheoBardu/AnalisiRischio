@@ -81,25 +81,6 @@ body { padding: 0; }
 .scroll-tab td { padding: 2px 6px; border-bottom: 1px solid color-mix(in srgb, var(--color-text) 7%, transparent); }
 .scroll-tab tbody tr:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
 
-/* finestre di dialogo interne (selettore cartella e file) */
-.velo {
-  position: fixed; inset: 0; background: rgba(0,0,0,.55);
-  display: flex; align-items: center; justify-content: center; z-index: 50;
-}
-.dialogo {
-  width: 520px; max-height: 70vh; display: flex; flex-direction: column; gap: 12px;
-  background: var(--color-bg); border-radius: 12px; padding: 16px;
-  box-shadow: var(--shadow-lg);
-}
-.elenco-voci { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; min-height: 120px; }
-.voce {
-  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
-  background: transparent; border: 0; border-radius: 7px; padding: 7px 9px;
-  color: var(--color-text); font: 12.5px var(--font-body); cursor: pointer;
-}
-.voce:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
-.voce.sel { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
-
 .avviso {
   display: flex; gap: 9px; align-items: flex-start; padding: 9px 12px;
   border-radius: 8px; font-size: 12px;

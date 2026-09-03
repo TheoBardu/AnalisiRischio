@@ -164,25 +164,42 @@ class Ponte(QObject):
             configurazione.scrivi(configurazione.CONFIG, cfg)
         return self.scansione
 
-    def _azione_sfoglia_cartelle(self, dati):
-        return progetto.elenco_cartelle(dati.get('percorso', ''))
+    # Filtri dei dialoghi di sistema, scelti dalla pagina per chiave: il nome
+    # del filtro compare nel dialogo, quindi sta qui e non nel JavaScript.
+    FILTRI_FILE = {
+        'xlsx': 'Fogli di calcolo (*.xlsx *.xls)',
+        'immagini': 'Immagini (*.png *.jpg *.jpeg *.gif *.bmp *.tif *.tiff)',
+    }
 
-    def _azione_sfoglia_file(self, dati):
-        return progetto.elenco_file(dati.get('percorso', ''),
-                                    tuple(dati.get('estensioni', ['.xlsx'])))
+    @staticmethod
+    def _cartella_di_partenza(percorso):
+        """Cartella da cui aprire un dialogo, risalendo se il percorso non c'e' piu'."""
+        percorso = os.path.expanduser(percorso or '')
+        while percorso and not os.path.isdir(percorso):
+            padre = os.path.dirname(percorso)
+            if padre == percorso:
+                break
+            percorso = padre
+        return percorso or os.path.expanduser('~')
 
     def _azione_dialogo_cartella(self, dati):
-        """Selettore nativo, come alternativa a quello interno."""
+        """Dialogo di sistema per la scelta di una cartella."""
         cartella = QFileDialog.getExistingDirectory(
             self.finestra, 'Seleziona la cartella dell\'azienda',
-            dati.get('percorso', '') or os.path.expanduser('~'))
+            self._cartella_di_partenza(dati.get('percorso', '')))
         return {'percorso': cartella}
 
     def _azione_dialogo_file(self, dati):
+        """
+        Dialogo di sistema per la scelta di un file.
+
+        INPUT: percorso - file o cartella da cui partire
+               filtro   - chiave di FILTRI_FILE ('xlsx' se assente)
+        """
+        filtro = self.FILTRI_FILE.get(dati.get('filtro', ''), self.FILTRI_FILE['xlsx'])
         percorso, _ = QFileDialog.getOpenFileName(
             self.finestra, 'Seleziona il file',
-            dati.get('percorso', '') or os.path.expanduser('~'),
-            'Fogli di calcolo (*.xlsx *.xls)')
+            dati.get('percorso', '') or os.path.expanduser('~'), filtro)
         return {'percorso': percorso}
 
     def _azione_imposta_file(self, dati):

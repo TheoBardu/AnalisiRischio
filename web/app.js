@@ -61,7 +61,6 @@ const S = {
 
   relazione: { campi: {}, dati: null, scheda: 'generali', messaggio: '',
                esito: '', inCorso: false, stato: {}, preset: [] },
-  modale: null,
   messaggio: null,
 };
 
@@ -272,7 +271,6 @@ function disegna() {
   disegnaSidebar();
   const disegnaSchermata = SCHERMATE[S.schermata] || SCHERMATE.cartelle;
   el('main').innerHTML = disegnaSchermata();
-  el('modale').innerHTML = S.modale ? disegnaModale() : '';
 }
 
 function intestazione(titolo, sottotitolo, destra) {
@@ -326,16 +324,18 @@ SCHERMATE.cartelle = function () {
 
   const supporto = [
     ['output/ (rumore)', rumore.presente ? (rumore.output_pronta ? 'pronta' : 'da creare') : '—', rumore.presente],
-    ['scheda_gruppi_dpi.xlsx', s && s.scheda ? nomeBase(s.scheda) : 'non trovata', !!(s && s.scheda)],
+    ['scheda_gruppi_dpi.xlsx', s && s.scheda ? nomeBase(s.scheda) : 'non trovata nella root',
+      !!(s && s.scheda), 'errore'],
     ['VR8h_totale.xlsx', S.risultatiRumore && S.risultatiRumore.disponibile ? 'presente' : 'da produrre',
       !!(S.risultatiRumore && S.risultatiRumore.disponibile)],
     ['misure vibrazioni', vibrazioni.presente
       ? Object.entries(vibrazioni.file || {}).filter(([, v]) => v).map(([k]) => k).join(', ') || 'nessuna'
       : '—', vibrazioni.presente && Object.values(vibrazioni.file || {}).some(Boolean)],
-  ].map(([nome, valore, ok], i, arr) => `
+  ].map(([nome, valore, ok, gravita], i, arr) => `
     <div class="kv"${i < arr.length - 1 ? ' style="border-bottom:1px solid var(--color-divider)"' : ''}>
       <span class="mono">${esc(nome)}</span>
-      <span style="color:${ok ? 'var(--colore-testo-ok)' : 'var(--colore-avviso)'}">${esc(valore)}</span></div>`).join('');
+      <span style="color:${ok ? 'var(--colore-testo-ok)'
+        : gravita === 'errore' ? 'var(--colore-errore)' : 'var(--colore-avviso)'}">${esc(valore)}</span></div>`).join('');
 
   const pr = S.parametriRumore;
   const pv = S.parametriVibrazioni;
@@ -348,8 +348,20 @@ SCHERMATE.cartelle = function () {
     ['combinato', 'Combinato', rumore.presente && vibrazioni.presente],
   ];
 
+  // la scheda dei gruppi e' condivisa fra rumore e vibrazioni e va nella root:
+  // se non c'e' l'analisi si fermerebbe a meta', quindi lo si dice subito e in
+  // rosso, con la strada per rimediare a mano
+  const avvisoScheda = (S.scansione && S.scansione.valida && S.scansione.scheda_mancante) ? `
+    <div class="avviso errore"><i class="ph-fill ph-warning-circle"></i>
+      <div style="flex:1"><span class="mono">scheda_gruppi_dpi.xlsx</span> non trovata
+        nella root azienda. E' il file condiviso fra rumore e vibrazioni: selezionalo
+        a mano, altrimenti l'analisi si ferma.</div>
+      <button class="btn btn-secondary" data-vai="schede" style="padding:4px 9px;font-size:11.5px">
+        <i class="ph ph-folder-open"></i>Schede HEG</button></div>` : '';
+
   return `
   ${bandaMessaggio()}
+  ${avvisoScheda}
   <div>
     <h4 class="mtitle">Cartella di lavoro</h4>
     <p class="msub">Seleziona la root dell'azienda. I rami Rumore e Vibrazioni, le cartelle misure e output e la scheda dei gruppi vengono riconosciuti automaticamente.</p>
@@ -358,8 +370,7 @@ SCHERMATE.cartelle = function () {
     <div class="field" style="flex:1;min-width:220px"><label>Root azienda</label>
       <input class="input mono" style="font-size:12.5px" id="campo-root" value="${esc(S.root)}">
     </div>
-    <button class="btn btn-secondary" data-azione="apri-picker"><i class="ph ph-folder-open"></i>Sfoglia…</button>
-    <button class="btn btn-secondary" data-azione="dialogo-cartella"><i class="ph ph-folder"></i>Sistema…</button>
+    <button class="btn btn-secondary" data-azione="scegli-root"><i class="ph ph-folder-open"></i>Sfoglia…</button>
     <button class="btn btn-primary" data-azione="scansiona"><i class="ph ph-arrow-clockwise"></i>Apri</button>
   </div>
 
@@ -431,61 +442,23 @@ SCHERMATE.cartelle = function () {
 };
 
 // ---------------------------------------------------------------------------
-// Selettori interni di cartella e file
+// Scelta di cartelle e file
 // ---------------------------------------------------------------------------
 
-function disegnaModale() {
-  const m = S.modale;
-  const voci = (m.voci || []).map((v, i) => `
-    <button class="voce${m.selezione === v.path ? ' sel' : ''}" data-voce="${i}">
-      <i class="${m.genere === 'file' ? 'ph ph-file-xls' : 'ph ph-folder'}"></i>
-      <span style="flex:1">${esc(v.nome)}</span>
-      ${v.rev ? `<span class="mono" style="font-size:11px;color:color-mix(in srgb,var(--color-text) 45%,transparent)">${esc(v.rev)}</span>` : ''}
-    </button>`).join('');
+/* La scelta passa sempre dai dialoghi di sistema: sono quelli che l'utente
+   conosce, sanno raggiungere qualunque punto del disco e si chiudono con Esc.
+   Il ponte apre QFileDialog e restituisce il percorso, vuoto se si annulla. */
 
-  return `<div class="velo" data-velo>
-    <div class="dialogo" onclick="event.stopPropagation()">
-      <div style="font:500 14px var(--font-heading)">${esc(m.titolo)}</div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <button class="btn btn-secondary" data-azione="modale-su" style="padding:5px 9px"><i class="ph ph-arrows-down-up"></i></button>
-        <div class="mono" style="flex:1;font-size:11.5px;color:color-mix(in srgb,var(--color-text) 60%,transparent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:rtl">${esc(m.percorso)}</div>
-      </div>
-      <div class="elenco-voci">${voci || '<div style="padding:12px;font-size:12px;color:color-mix(in srgb,var(--color-text) 45%,transparent)">cartella vuota</div>'}</div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-secondary" data-azione="modale-annulla">Annulla</button>
-        <button class="btn btn-primary" data-azione="modale-conferma">${m.genere === 'file' ? 'Apri file' : 'Apri cartella'}</button>
-      </div>
-    </div></div>`;
+async function scegliCartella(partenza) {
+  const esito = await chiama('dialogo_cartella', { percorso: partenza || '' });
+  return esito.percorso || '';
 }
 
-async function apriModale(genere, percorso, titolo, alConferma) {
-  const azione = genere === 'file' ? 'sfoglia_file' : 'sfoglia_cartelle';
-  const esito = await chiama(azione, { percorso });
-  S.modale = {
-    genere, titolo, alConferma,
-    percorso: esito.percorso, padre: esito.padre,
-    voci: esito.voci || [], selezione: genere === 'file' ? '' : esito.percorso,
-  };
-  disegna();
+async function scegliFile(partenza, filtro) {
+  const esito = await chiama('dialogo_file',
+    { percorso: partenza || '', filtro: filtro || 'xlsx' });
+  return esito.percorso || '';
 }
-
-suClic('[data-voce]', async (nodo) => {
-  const voce = S.modale.voci[Number(nodo.dataset.voce)];
-  if (S.modale.genere === 'file') { S.modale.selezione = voce.path; disegna(); return; }
-  await apriModale('cartella', voce.path, S.modale.titolo, S.modale.alConferma);
-});
-
-suClic('[data-azione="modale-su"]', async () => {
-  await apriModale(S.modale.genere, S.modale.padre, S.modale.titolo, S.modale.alConferma);
-});
-suClic('[data-azione="modale-annulla"]', () => { S.modale = null; disegna(); });
-suClic('[data-azione="modale-conferma"]', async () => {
-  const scelta = S.modale.selezione || S.modale.percorso;
-  const alConferma = S.modale.alConferma;
-  S.modale = null;
-  disegna();
-  if (alConferma) await alConferma(scelta);
-});
 
 // ---------------------------------------------------------------------------
 // Griglia modificabile riusabile
@@ -1311,17 +1284,9 @@ async function ricaricaTutto() {
 
 suInput('#campo-root', (nodo) => { S.root = nodo.value; });
 
-suClic('[data-azione="apri-picker"]', () => {
-  const partenza = S.root || S.config.cartella_lavori || '';
-  apriModale('cartella', partenza, 'Seleziona la cartella dell\'azienda', async (scelta) => {
-    S.root = scelta;
-    await scansiona();
-  });
-});
-
-suClic('[data-azione="dialogo-cartella"]', async () => {
-  const esito = await chiama('dialogo_cartella', { percorso: S.root || S.config.cartella_lavori });
-  if (esito.percorso) { S.root = esito.percorso; await scansiona(); }
+suClic('[data-azione="scegli-root"]', async () => {
+  const scelta = await scegliCartella(S.root || S.config.cartella_lavori);
+  if (scelta) { S.root = scelta; await scansiona(); }
 });
 
 suClic('[data-azione="scansiona"]', () => scansiona());
@@ -1369,14 +1334,12 @@ suModifica('[data-par-vib]', async (nodo) => {
 // ---- schede ----
 suClic('[data-azione="ricarica-schede"]', async () => { await caricaSchede(); disegna(); });
 
-suClic('[data-azione="scegli-scheda"]', () => {
-  const partenza = S.schede && S.schede.percorso
-    ? S.schede.percorso.replace(/\/[^/]*$/, '') : S.root;
-  apriModale('file', partenza, 'Seleziona la scheda dei gruppi', async (scelta) => {
-    await chiama('imposta_file', { chiave: 'scheda', percorso: scelta });
-    await caricaSchede();
-    disegna();
-  });
+suClic('[data-azione="scegli-scheda"]', async () => {
+  const scelta = await scegliFile((S.schede && S.schede.percorso) || S.root, 'xlsx');
+  if (!scelta) return;
+  await chiama('imposta_file', { chiave: 'scheda', percorso: scelta });
+  await caricaSchede();
+  disegna();
 });
 
 suClic('[data-azione="salva-schede"]', async () => {
@@ -1448,11 +1411,10 @@ suInput('[data-campo-relazione]', impostaCampoRelazione);
 suModifica('[data-campo-relazione]', impostaCampoRelazione);
 
 suClic('[data-azione="scegli-logo"]', async () => {
-  await apriModale('file', S.relazione.campi.logo_azienda || S.root,
-    'Logo aziendale', async (percorso) => {
-      S.relazione.campi.logo_azienda = percorso;
-      disegna();
-    });
+  const scelta = await scegliFile(S.relazione.campi.logo_azienda || S.root, 'immagini');
+  if (!scelta) return;
+  S.relazione.campi.logo_azienda = scelta;
+  disegna();
 });
 
 suClic('[data-azione="salva-preset"]', async () => {

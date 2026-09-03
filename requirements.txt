@@ -7,8 +7,12 @@ PyQtWebEngine>=5.15
 # lo stesso e macOS disegna la sua barra del titolo sopra la pagina.
 pyobjc-framework-Cocoa>=9.0; sys_platform == 'darwin'
 
-# Lettura e scrittura dei fogli di calcolo
-pandas>=2.0
+# Lettura e scrittura dei fogli di calcolo.
+# pandas <3 e' un vincolo del backend: analisi_datiVR.py converte le colonne
+# data con assegnazioni posizionali (df.iloc[:, N] = ...), che pandas 3 non
+# accetta piu' perche' le colonne di testo hanno dtype 'str' e la scrittura
+# posizionale non puo' cambiarne il tipo.
+pandas>=2.0,<3
 openpyxl>=3.1
 numpy>=1.24
 

@@ -25,6 +25,22 @@ NOME_RILIEVI = 'Rilievi_Fonometrici.xlsx'
 NOME_TOTALE = 'VR8h_totale.xlsx'
 NOME_RIEPILOGO = 'VR8h_riepilogo.xlsx'
 NOME_AGGIORNATO = 'VR8h_totale_aggiornato.xlsx'
+NOME_SCHEDA = 'scheda_gruppi_dpi.xlsx'
+
+
+def _leggi_scheda_rilievi(crea, scheda):
+    """
+    Foglio delle mansioni per Rilievi_Fonometrici.xlsx.
+
+    load_scheda() vuole una cartella e ricompone da se' il nome canonico: va
+    bene finche' la scheda si chiama scheda_gruppi_dpi.xlsx, ma dall'interfaccia
+    se ne puo' indicare una con un altro nome. In quel caso si legge il file
+    scelto nello stesso modo, senza passare da load_scheda.
+    """
+    if os.path.basename(scheda).lower() == NOME_SCHEDA:
+        return crea.load_scheda(os.path.dirname(scheda))
+    import pandas as pd
+    return pd.read_excel(scheda, sheet_name=crea.SCHEDA_MANSIONI, header=1)
 
 
 def costruisci_passi(cfg, stato):
@@ -139,7 +155,8 @@ def costruisci_passi(cfg, stato):
         crea = carica_modulo(os.path.join(cartella_vrr, 'utility'), 'crea_excel_dati')
         df_avg = crea.load_averaged_data(cartella_dati)
         df_mis = crea.load_mis_files(cartella_dati)
-        df_scheda = crea.load_scheda(os.path.dirname(scheda) if scheda else main_directory)
+        df_scheda = _leggi_scheda_rilievi(crea, scheda or
+                                          os.path.join(main_directory, NOME_SCHEDA))
         destinazione = os.path.join(cartella_output, NOME_RILIEVI)
         crea.write_excel(df_avg, df_mis, df_scheda, destinazione)
         log(f'{NOME_RILIEVI} creato in {cartella_output}')

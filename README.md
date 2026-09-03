@@ -36,8 +36,9 @@ usa allo stesso modo.
 
 - **Riconosce la cartella**: a partire dalla root cerca i rami `Rumore` e
   `Vibrazioni` (anche dentro `rev/rev<N>/`), le cartelle `misure` e `output`,
-  la `scheda_gruppi_dpi.xlsx` e i file delle misure di vibrazione, i cui nomi
-  nei lavori reali variano. Il layout non e' uniforme fra le aziende e non
+  la `scheda_gruppi_dpi.xlsx` — nella **root**, perche' e' condivisa fra rumore
+  e vibrazioni — e i file delle misure di vibrazione, i cui nomi nei lavori
+  reali variano. Il layout non e' uniforme fra le aziende e non
   viene dato per scontato.
 - **Mostra e fa modificare i dati**: tabella DPI e scheda mansioni, valori
   misurati del rumore (`averaged_data.csv`), dati costruttori e misure HAV/WBV
@@ -120,7 +121,8 @@ VRV azzera gli handler del logger.
   cartella delle misure senza uscirne e lancia due utility con `os.system` e
   percorsi assoluti scritti nel codice.
 - `VRV/main.py` pretende `scheda_gruppi_dpi.xlsx` *una cartella sopra* la main
-  directory, mentre nei lavori reali il file sta nel ramo `Rumore`.
+  directory, mentre qui il file sta nella root dell'azienda ed e' comunque
+  sostituibile a mano dalla schermata *Schede HEG*.
 
 I runner ripetono la stessa sequenza chiamando le funzioni pubbliche con
 percorsi espliciti, cosi' i parametri arrivano dall'interfaccia e i due

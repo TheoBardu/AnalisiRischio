@@ -184,22 +184,24 @@ def _primo_esistente(*percorsi):
     return percorsi[0] if percorsi else ''
 
 
-def _trova_scheda(*cartelle):
-    """Cerca scheda_gruppi_dpi.xlsx nelle cartelle indicate, in ordine."""
-    for cartella in cartelle:
-        if not cartella or not os.path.isdir(cartella):
-            continue
-        diretto = os.path.join(cartella, NOME_SCHEDA)
-        if os.path.exists(diretto):
-            return diretto
+def _trova_scheda(root):
+    """
+    Cerca scheda_gruppi_dpi.xlsx nella root dell'azienda.
+
+    Il file e' condiviso fra rumore e vibrazioni (e fra le valutazioni che si
+    aggiungeranno), quindi il suo posto e' la root e non il ramo Rumore: chi ha
+    ancora la vecchia disposizione lo indica a mano dalla schermata Schede HEG.
+    """
+    if not root or not os.path.isdir(root):
+        return ''
+    diretto = os.path.join(root, NOME_SCHEDA)
+    if os.path.exists(diretto):
+        return diretto
     # ripiego: un qualunque file che finisca con scheda_gruppi_dpi.xlsx
-    for cartella in cartelle:
-        if not cartella or not os.path.isdir(cartella):
-            continue
-        for nome in sorted(os.listdir(cartella)):
-            basso = nome.lower()
-            if basso.endswith('scheda_gruppi_dpi.xlsx') and not basso.startswith('~$'):
-                return os.path.join(cartella, nome)
+    for nome in sorted(os.listdir(root)):
+        basso = nome.lower()
+        if basso.endswith('scheda_gruppi_dpi.xlsx') and not basso.startswith('~$'):
+            return os.path.join(root, nome)
     return ''
 
 
@@ -213,7 +215,8 @@ def scansiona(root):
                      vr8h_totale, vr8h_riepilogo, vr8h_aggiornato}
         vibrazioni  {presente, main, misure, output, file, scheda,
                      misureVIB, vr_vib}
-        scheda      percorso di scheda_gruppi_dpi.xlsx condiviso
+        scheda      percorso di scheda_gruppi_dpi.xlsx, cercato nella root
+        scheda_mancante  True se nella root non c'e'
         modalita_suggerita
     """
     root = os.path.abspath(os.path.expanduser(root or ''))
@@ -282,11 +285,11 @@ def scansiona(root):
         }
 
     # ---- scheda condivisa ----
-    # VRV la cerca una cartella sopra la propria main directory, ma nei lavori
-    # reali sta nel ramo Rumore: la si risolve qui una volta per tutte e la si
-    # passa esplicitamente al runner.
-    esito['scheda'] = _trova_scheda(ramo_rumore, root, ramo_vibrazioni,
-                                    os.path.dirname(ramo_vibrazioni or root))
+    # Sta nella root perche' rumore e vibrazioni la usano entrambi: la si
+    # risolve qui una volta per tutte e la si passa esplicitamente ai runner,
+    # che altrimenti la cercherebbero ognuno per conto proprio.
+    esito['scheda'] = _trova_scheda(root)
+    esito['scheda_mancante'] = not esito['scheda']
     if esito['rumore']['presente']:
         esito['rumore']['scheda'] = esito['scheda']
     if esito['vibrazioni']['presente']:
@@ -306,47 +309,3 @@ def scansiona(root):
     if not esito['valida']:
         esito['errore'] = 'Nessun dato di misura riconosciuto nella cartella.'
     return esito
-
-
-def elenco_cartelle(percorso):
-    """
-    Contenuto di una cartella, per il selettore interno dell'interfaccia.
-
-    OUTPUT: {percorso, padre, voci: [{nome, path, rev}]}
-        rev - etichetta con le revisioni trovate, se la cartella e' un'azienda
-    """
-    percorso = os.path.abspath(os.path.expanduser(percorso or os.path.expanduser('~')))
-    if not os.path.isdir(percorso):
-        percorso = os.path.expanduser('~')
-
-    voci = []
-    for nome in _sottocartelle(percorso):
-        completo = os.path.join(percorso, nome)
-        revisioni = []
-        cartella_rev = os.path.join(completo, 'rev')
-        if os.path.isdir(cartella_rev):
-            revisioni = [n for n in _sottocartelle(cartella_rev)
-                         if n.lower().startswith('rev')]
-        etichetta = ''
-        if revisioni:
-            etichetta = revisioni[-1]
-        elif any(n.lower() in NOMI_RUMORE or n.lower() in NOMI_VIBRAZIONI
-                 for n in _sottocartelle(completo)):
-            etichetta = 'rumore/vibrazioni'
-        voci.append({'nome': nome, 'path': completo, 'rev': etichetta})
-
-    return {'percorso': percorso, 'padre': os.path.dirname(percorso), 'voci': voci}
-
-
-def elenco_file(percorso, estensioni=('.xlsx',)):
-    """Elenco dei file di una cartella, per il selettore file dell'interfaccia."""
-    percorso = os.path.abspath(os.path.expanduser(percorso or ''))
-    voci = []
-    if os.path.isdir(percorso):
-        for nome in sorted(os.listdir(percorso)):
-            if nome.startswith('.') or nome.startswith('~$'):
-                continue
-            completo = os.path.join(percorso, nome)
-            if os.path.isfile(completo) and nome.lower().endswith(tuple(estensioni)):
-                voci.append({'nome': nome, 'path': completo})
-    return {'percorso': percorso, 'padre': os.path.dirname(percorso), 'voci': voci}
