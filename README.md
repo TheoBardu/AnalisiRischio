@@ -97,7 +97,10 @@ Tutto in **una sola directory**, `~/.analisirischio`
 | `parametri_rumore.json` | `T0`, `u2m`, `u_pos`, versione firmware, limite Lex,8h |
 | `parametri_vibrazioni.json` | `C_P_HAV`, `C_P_WBV`, `C_S`, soglie, decimali, export PDF |
 | `progetti_recenti.json` | ultime cartelle aperte |
-| `relazione/<nome>.json` | preset dei dati della relazione |
+
+I dati della relazione Word non stanno qui: sono dati dell'azienda, non
+dell'installazione, e vivono in `<root>/relazione_dati.json`. Aprendo la
+cartella si caricano da soli; il pulsante *Salva* li riscrive sovrascrivendo.
 
 I `parameters.py` dei due backend non vengono mai riscritti: se ne leggono
 solo i valori di default al primo avvio.

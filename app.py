@@ -129,7 +129,6 @@ class Ponte(QObject):
             'recenti': configurazione.progetti_recenti(),
             'cartella_config': configurazione.cartella_config(),
             'finestra': self.finestra.misure_barra,
-            'preset_relazione': configurazione.preset_relazione(),
             'relazione': {ramo: self._stato_relazione(ramo)
                           for ramo in ('rumore', 'vibrazioni')},
             'campi_relazione': {blocco: contesto_relazione.elenco_campi([blocco])
@@ -162,6 +161,10 @@ class Ponte(QObject):
             cfg = configurazione.config()
             cfg['ultima_root'] = self.scansione['root']
             configurazione.scrivi(configurazione.CONFIG, cfg)
+            # i dati della relazione stanno accanto al lavoro: aprendo la
+            # cartella si ricaricano da soli, senza passare da un pulsante
+            self.scansione['dati_relazione'] = progetto.leggi_dati_relazione(
+                self.scansione['root'])['dati']
         return self.scansione
 
     # Filtri dei dialoghi di sistema, scelti dalla pagina per chiave: il nome
@@ -399,17 +402,27 @@ class Ponte(QObject):
                             for ramo in ('rumore', 'vibrazioni')},
         }
 
-    def _azione_relazione_preset(self, dati):
-        operazione = dati.get('operazione', 'elenco')
-        if operazione == 'elenco':
-            return {'preset': configurazione.preset_relazione()}
-        nome = (dati.get('nome') or 'preset').strip() or 'preset'
+    def _azione_relazione_dati_file(self, dati):
+        """
+        Legge o scrive relazione_dati.json nella root dell'azienda.
+
+        INPUT:  operazione - 'salva' oppure 'carica'
+                dati       - i campi, per il salvataggio
+        OUTPUT: salva  -> {'ok', 'percorso', 'esisteva', 'errore'}
+                carica -> {'ok', 'trovato', 'dati', 'percorso'}
+        """
+        root = self.scansione.get('root', '') if self.scansione.get('valida') else ''
+        if not root:
+            return {'ok': False,
+                    'errore': 'Seleziona prima una cartella di lavoro valida.'}
+        operazione = dati.get('operazione', 'carica')
         if operazione == 'salva':
-            configurazione.scrivi_preset_relazione(nome, dati.get('dati', {}))
-            return {'ok': True, 'preset': configurazione.preset_relazione()}
+            return progetto.scrivi_dati_relazione(root, dati.get('dati', {}))
         if operazione == 'carica':
-            return {'ok': True, 'dati': configurazione.leggi_preset_relazione(nome)}
-        return {'errore': f'Operazione sconosciuta: {operazione}'}
+            esito = progetto.leggi_dati_relazione(root)
+            esito['ok'] = True
+            return esito
+        return {'ok': False, 'errore': f'Operazione sconosciuta: {operazione}'}
 
     def _configurazione_relazione(self, ramo, campi):
         """Configurazione del runner della relazione, per un ramo."""

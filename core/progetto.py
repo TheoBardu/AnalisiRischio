@@ -9,6 +9,7 @@ parte dalla root scelta dall'utente e si cerca cosa c'e', invece di pretendere
 una struttura fissa.
 """
 
+import json
 import os
 
 from core import backend, configurazione
@@ -20,6 +21,7 @@ NOMI_VIBRAZIONI = ('vibrazioni', 'vibrazione', 'vib')
 NOME_MISURE = 'misure'
 NOME_OUTPUT = 'output'
 NOME_SCHEDA = 'scheda_gruppi_dpi.xlsx'
+NOME_DATI_RELAZIONE = 'relazione_dati.json'
 
 PROFONDITA_MASSIMA = 2
 
@@ -309,3 +311,68 @@ def scansiona(root):
     if not esito['valida']:
         esito['errore'] = 'Nessun dato di misura riconosciuto nella cartella.'
     return esito
+
+
+# ---------------------------------------------------------------------------
+# Dati della relazione, accanto al lavoro a cui appartengono
+# ---------------------------------------------------------------------------
+#
+# Stanno nella root e non nella configurazione dell'applicazione: sono dati
+# dell'azienda, non dell'installazione. Cosi' seguono la cartella se la si
+# sposta o la si copia su un'altra macchina, e all'apertura si ricaricano da
+# soli invece di doverli richiamare a mano.
+
+
+def percorso_dati_relazione(root):
+    """Percorso di relazione_dati.json nella root indicata."""
+    if not root:
+        return ''
+    return os.path.join(os.path.abspath(os.path.expanduser(root)), NOME_DATI_RELAZIONE)
+
+
+def leggi_dati_relazione(root):
+    """
+    Legge i dati della relazione dalla root.
+
+    Un file rovinato non deve impedire di aprire la cartella: in quel caso si
+    riporta trovato=False e si riparte da campi vuoti.
+
+    OUTPUT: {'trovato': bool, 'dati': dict, 'percorso': str}
+    """
+    percorso = percorso_dati_relazione(root)
+    esito = {'trovato': False, 'dati': {}, 'percorso': percorso}
+    if not percorso or not os.path.exists(percorso):
+        return esito
+    try:
+        with open(percorso, encoding='utf-8') as f:
+            dati = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return esito
+    if not isinstance(dati, dict):
+        return esito
+    esito['trovato'] = True
+    esito['dati'] = dati
+    return esito
+
+
+def scrivi_dati_relazione(root, dati):
+    """
+    Salva i dati della relazione nella root, sovrascrivendo.
+
+    'esisteva' viene letto prima di scrivere: e' quello che serve
+    all'interfaccia per dire se ha sostituito un file gia' presente.
+
+    OUTPUT: {'ok', 'percorso', 'esisteva', 'errore'}
+    """
+    percorso = percorso_dati_relazione(root)
+    if not percorso:
+        return {'ok': False, 'percorso': '', 'esisteva': False,
+                'errore': 'Nessuna cartella di lavoro aperta.'}
+    esisteva = os.path.exists(percorso)
+    try:
+        with open(percorso, 'w', encoding='utf-8') as f:
+            json.dump(dati or {}, f, indent=2, ensure_ascii=False)
+    except OSError as errore:
+        return {'ok': False, 'percorso': percorso, 'esisteva': esisteva,
+                'errore': str(errore)}
+    return {'ok': True, 'percorso': percorso, 'esisteva': esisteva, 'errore': ''}

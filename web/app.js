@@ -60,7 +60,7 @@ const S = {
   esecuzione: { inCorso: false, passi: [], righe: [], filtro: 'tutti', coda: true, inizio: 0 },
 
   relazione: { campi: {}, dati: null, scheda: 'generali', messaggio: '',
-               esito: '', inCorso: false, stato: {}, preset: [] },
+               esito: '', inCorso: false, stato: {} },
   messaggio: null,
 };
 
@@ -152,6 +152,37 @@ function applicaMisureFinestra(misure) {
 // Sidebar
 // ---------------------------------------------------------------------------
 
+/*
+ * Le tre valutazioni possibili, con l'icona usata anche dai pulsanti della
+ * relazione. Una modalita' e' selezionabile solo se il ramo corrispondente
+ * esiste davvero nella cartella aperta.
+ */
+function modalitaPossibili() {
+  const rumore = (S.scansione && S.scansione.rumore) || {};
+  const vibrazioni = (S.scansione && S.scansione.vibrazioni) || {};
+  return [
+    ['rumore', 'Rumore', 'ph ph-speaker-high', !!rumore.presente],
+    ['vibrazioni', 'Vibrazioni', 'ph ph-waveform', !!vibrazioni.presente],
+    ['combinato', 'Combinato', 'ph ph-files', !!(rumore.presente && vibrazioni.presente)],
+  ];
+}
+
+/*
+ * Selettore della valutazione, in colonna: nella sidebar da 206px i tre
+ * pulsanti affiancati taglierebbero «Vibrazioni». Sta qui e non nella
+ * schermata «Cartella di lavoro» perche' la modalita' decide quali voci di
+ * menu' esistono, e va poter cambiare da qualunque schermata.
+ */
+function selettoreModalita() {
+  const opzioni = modalitaPossibili().map(([chiave, nome, icona, possibile]) => `
+    <label class="seg-opt"${possibile ? '' : ' style="opacity:.4"'}>
+      <input type="radio" name="modalita" value="${chiave}" data-modalita
+        ${S.modalita === chiave ? 'checked' : ''}${possibile ? '' : ' disabled'}>
+      <i class="${icona}"></i>${nome}</label>`).join('');
+  return `<div class="sec">Valutazione</div>
+    <div class="seg seg-vert">${opzioni}</div>`;
+}
+
 const VOCI = {
   cartelle: { icona: 'ph ph-folder-open', nome: 'Cartella di lavoro', sempre: true },
   schede: { icona: 'ph ph-clipboard-text', nome: 'Schede HEG', sempre: true },
@@ -213,7 +244,8 @@ function disegnaSidebar() {
         title="${S.config.tema === 'chiaro' ? 'Passa al tema scuro' : 'Passa al tema chiaro'}">
         <i class="ph ${S.config.tema === 'chiaro' ? 'ph-moon' : 'ph-sun'}"></i></button>
     </div>
-    <div style="font-size:11px;line-height:1.7;color:color-mix(in srgb,var(--color-text) 50%,transparent)">${esc(testoStato())}</div>`;
+    <div style="font-size:11px;line-height:1.7;color:color-mix(in srgb,var(--color-text) 50%,transparent)">${esc(testoStato())}</div>
+    ${selettoreModalita()}`;
   if (S.esecuzione.inCorso) {
     html += `<button class="btn btn-secondary btn-block" data-azione="ferma"><i class="ph ph-stop"></i>Interrompi</button>`;
   } else {
@@ -342,12 +374,6 @@ SCHERMATE.cartelle = function () {
   const mostraRumore = S.modalita !== 'vibrazioni';
   const mostraVibrazioni = S.modalita !== 'rumore';
 
-  const modalitaPossibili = [
-    ['rumore', 'Rumore', rumore.presente],
-    ['vibrazioni', 'Vibrazioni', vibrazioni.presente],
-    ['combinato', 'Combinato', rumore.presente && vibrazioni.presente],
-  ];
-
   // la scheda dei gruppi e' condivisa fra rumore e vibrazioni e va nella root:
   // se non c'e' l'analisi si fermerebbe a meta', quindi lo si dice subito e in
   // rosso, con la strada per rimediare a mano
@@ -384,14 +410,7 @@ SCHERMATE.cartelle = function () {
       </div>
       ${avvisi.map((a) => `<p style="margin:0;font-size:11px;color:var(--colore-avviso)"><i class="ph-fill ph-warning-circle" style="margin-right:5px"></i>${esc(a)}</p>`).join('')}
 
-      <p class="sec" style="margin-top:6px">Valutazione da eseguire</p>
-      <div class="seg">
-        ${modalitaPossibili.map(([chiave, nome, possibile]) => `
-          <label class="seg-opt${S.modalita === chiave ? ' on' : ''}"${possibile ? '' : ' style="opacity:.4"'}>
-            <input type="radio" name="modalita" value="${chiave}" data-modalita
-              ${S.modalita === chiave ? 'checked' : ''}${possibile ? '' : ' disabled'}>${nome}</label>`).join('')}
-      </div>
-      <p style="margin:0;font-size:11px;color:color-mix(in srgb,var(--color-text) 45%,transparent)">
+      <p style="margin:6px 0 0;font-size:11px;color:color-mix(in srgb,var(--color-text) 45%,transparent)">
         ${esc(S.scansione && S.scansione.valida
           ? `${cartelle.filter((c) => c.valida).length} cartelle di misura valide su ${cartelle.length}`
           : 'apri una cartella per iniziare')}</p>
@@ -1195,8 +1214,10 @@ SCHERMATE.relazione = function () {
   ${intestazione('Dati per la relazione',
       `${(dati.tabella_HEG || []).length} gruppi · ${(dati.tabella_dpi || []).length} DPI`,
       `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-        <button class="btn btn-secondary" data-azione="carica-preset"><i class="ph ph-upload-simple"></i>Carica</button>
-        <button class="btn btn-secondary" data-azione="salva-preset"><i class="ph ph-floppy-disk"></i>Salva</button>
+        <button class="btn btn-secondary" data-azione="ricarica-relazione"
+          title="Rilegge relazione_dati.json dalla root, scartando le modifiche non salvate"><i class="ph ph-arrow-clockwise"></i>Ricarica</button>
+        <button class="btn btn-secondary" data-azione="salva-relazione"
+          title="Salva i dati in relazione_dati.json nella root dell'azienda"><i class="ph ph-floppy-disk"></i>Salva</button>
         ${pulsante('rumore', 'Rumore', 'ph-speaker-high')}
         ${pulsante('vibrazioni', 'Vibrazioni', 'ph-waveform')}
         ${pulsante('entrambe', 'Entrambe', 'ph-files')}
@@ -1296,6 +1317,9 @@ async function scansiona() {
   S.scansione = esito;
   if (esito.valida) {
     S.modalita = esito.modalita_suggerita;
+    // i dati della relazione arrivano con la scansione: aprendo la cartella
+    // sono gia' quelli del lavoro, senza premere niente
+    S.relazione.campi = esito.dati_relazione || {};
     await ricaricaTutto();
     messaggio(`Cartella aperta: ${nomeBase(esito.root)} · modalita' ${S.modalita}`, 'ok');
   } else {
@@ -1417,22 +1441,35 @@ suClic('[data-azione="scegli-logo"]', async () => {
   disegna();
 });
 
-suClic('[data-azione="salva-preset"]', async () => {
-  const nome = nomeBase(S.scansione && S.scansione.root) || 'preset';
-  await chiama('relazione_preset', { operazione: 'salva', nome, dati: S.relazione.campi });
-  messaggio(`Dati della relazione salvati come «${nome}»`, 'ok');
+/* I dati stanno in <root>/relazione_dati.json: si salvano sovrascrivendo, e
+   la banda dice se hanno preso il posto di un file gia' presente. */
+suClic('[data-azione="salva-relazione"]', async () => {
+  const esito = await chiama('relazione_dati_file',
+    { operazione: 'salva', dati: S.relazione.campi });
+  if (!esito.ok) {
+    messaggio(esito.errore || 'Salvataggio non riuscito.', 'errore');
+    return;
+  }
+  if (esito.esisteva) {
+    messaggio('relazione_dati.json esisteva gia\' nella root ed e\' stato sovrascritto.', 'avviso');
+  } else {
+    messaggio(`relazione_dati.json salvato in ${nomeBase(S.scansione.root)}`, 'ok');
+  }
 });
 
-suClic('[data-azione="carica-preset"]', async () => {
-  const elenco = await chiama('relazione_preset', { operazione: 'elenco' });
-  const preset = elenco.preset || [];
-  if (!preset.length) { messaggio('Nessun preset salvato.', 'avviso'); return; }
-  const nome = nomeBase(S.scansione && S.scansione.root);
-  const scelto = preset.includes(nome) ? nome : preset[0];
-  const esito = await chiama('relazione_preset', { operazione: 'carica', nome: scelto });
+suClic('[data-azione="ricarica-relazione"]', async () => {
+  const esito = await chiama('relazione_dati_file', { operazione: 'carica' });
+  if (!esito.ok) {
+    messaggio(esito.errore || 'Lettura non riuscita.', 'errore');
+    return;
+  }
+  if (!esito.trovato) {
+    messaggio('Nessun relazione_dati.json nella root: i campi restano come sono.', 'avviso');
+    return;
+  }
   S.relazione.campi = esito.dati || {};
   await caricaRelazione();
-  messaggio(`Caricato il preset «${scelto}»`, 'ok');
+  messaggio('Dati della relazione riletti dalla root.', 'ok');
   disegna();
 });
 

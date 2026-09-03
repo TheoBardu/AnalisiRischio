@@ -9,7 +9,9 @@ la variabile d'ambiente ANALISIRISCHIO_HOME):
     parametri_rumore.json       costanti di calcolo VRR
     parametri_vibrazioni.json   costanti di calcolo VRV
     progetti_recenti.json       elenco delle ultime root aperte
-    relazione/<nome>.json       preset dei dati per la relazione Word
+
+I dati della relazione Word non stanno qui: sono dati dell'azienda, non
+dell'installazione, e vivono in <root>/relazione_dati.json (vedi core/progetto.py).
 
 I parameters.py di VRR_analisiDati e VRV_analisiDati non vengono mai riscritti:
 da li' si leggono soltanto i valori di default al primo avvio.
@@ -24,7 +26,6 @@ CONFIG = 'config.json'
 PARAMETRI_RUMORE = 'parametri_rumore.json'
 PARAMETRI_VIBRAZIONI = 'parametri_vibrazioni.json'
 PROGETTI_RECENTI = 'progetti_recenti.json'
-CARTELLA_RELAZIONE = 'relazione'
 
 MAX_PROGETTI_RECENTI = 12
 
@@ -107,7 +108,6 @@ def cartella_config():
     if not base:
         base = os.path.join(os.path.expanduser('~'), NOME_CARTELLA)
     os.makedirs(base, exist_ok=True)
-    os.makedirs(os.path.join(base, CARTELLA_RELAZIONE), exist_ok=True)
     return base
 
 
@@ -194,23 +194,6 @@ def aggiungi_progetto_recente(root):
     elenco = elenco[:MAX_PROGETTI_RECENTI]
     scrivi(PROGETTI_RECENTI, elenco)
     return elenco
-
-
-def preset_relazione():
-    """Elenco dei nomi dei preset salvati per la relazione."""
-    cartella = os.path.join(cartella_config(), CARTELLA_RELAZIONE)
-    if not os.path.isdir(cartella):
-        return []
-    return sorted(os.path.splitext(n)[0] for n in os.listdir(cartella)
-                  if n.endswith('.json'))
-
-
-def leggi_preset_relazione(nome):
-    return leggi(os.path.join(CARTELLA_RELAZIONE, f'{nome}.json'), {})
-
-
-def scrivi_preset_relazione(nome, dati):
-    return scrivi(os.path.join(CARTELLA_RELAZIONE, f'{nome}.json'), dati)
 
 
 def percorso_modello(chiave):

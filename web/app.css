@@ -95,3 +95,12 @@ body { padding: 0; }
   background: color-mix(in srgb, var(--colore-ok) 12%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--colore-ok) 35%, transparent);
 }
+
+/* Selettore della valutazione nella sidebar: .seg e' in riga, ma 206px non
+   bastano per tre etichette affiancate, quindi qui si impila. */
+.seg-vert { flex-direction: column; width: 100%; }
+.seg-vert .seg-opt { padding: 6px 9px; font-size: 12px; gap: 8px; }
+.seg-vert .seg-opt i { font-size: 14px; }
+.seg-vert .seg-opt + .seg-opt {
+  border-left: 0; border-top: 1px solid var(--color-divider);
+}
