@@ -34,7 +34,7 @@ CARTELLA_PROGETTO = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, CARTELLA_PROGETTO)
 
 from core import (configurazione, esecuzione, input_vibrazioni, progetto,
-                  risultati_rumore, risultati_vibrazioni, schede)
+                  risultati_rumore, risultati_vibrazioni, schede, spettri)
 from relazione import contesto as contesto_relazione
 from relazione import generatore
 from runner import passi as elenco_passi
@@ -72,6 +72,9 @@ class Ponte(QObject):
         self.finestra = finestra
         self.esecuzione = esecuzione.Esecuzione(self._inoltra_evento)
         self.scansione = {}
+        # profili temporali delle misure: si tengono solo in memoria, non si
+        # scrivono da nessuna parte e si buttano a ogni nuova scansione
+        self._spettri = None
         # la scrittura dei .docx gira in un thread: il sottoprocesso dura
         # qualche secondo e bloccarci l'interfaccia la farebbe sembrare morta
         self.relazione_in_corso = False
@@ -155,6 +158,7 @@ class Ponte(QObject):
     # ---- cartella di lavoro ------------------------------------------
     def _azione_scansiona(self, dati):
         root = dati.get('root', '')
+        self._spettri = None
         self.scansione = progetto.scansiona(root)
         if self.scansione.get('valida'):
             configurazione.aggiungi_progetto_recente(self.scansione['root'])
@@ -173,6 +177,8 @@ class Ponte(QObject):
         'xlsx': 'Fogli di calcolo (*.xlsx *.xls)',
         'immagini': 'Immagini (*.png *.jpg *.jpeg *.gif *.bmp *.tif *.tiff)',
     }
+
+    FILTRI_SALVATAGGIO = {'pdf': 'Documenti PDF (*.pdf)'}
 
     @staticmethod
     def _cartella_di_partenza(percorso):
@@ -203,6 +209,15 @@ class Ponte(QObject):
         percorso, _ = QFileDialog.getOpenFileName(
             self.finestra, 'Seleziona il file',
             dati.get('percorso', '') or os.path.expanduser('~'), filtro)
+        return {'percorso': percorso}
+
+    def _azione_dialogo_salva_file(self, dati):
+        """Dialogo di sistema per la scelta del file da scrivere."""
+        percorso, _ = QFileDialog.getSaveFileName(
+            self.finestra, 'Salva con nome',
+            dati.get('percorso', '') or os.path.expanduser('~'),
+            self.FILTRI_SALVATAGGIO.get(dati.get('filtro', ''),
+                                        self.FILTRI_SALVATAGGIO['pdf']))
         return {'percorso': percorso}
 
     def _azione_imposta_file(self, dati):
@@ -257,6 +272,71 @@ class Ponte(QObject):
         ramo = self.scansione.get('rumore', {})
         return risultati_rumore.salva_medie(
             os.path.join(ramo.get('misure', ''), 'data'), dati.get('righe', []))
+
+    # ---- spettri ------------------------------------------------------
+    def _cartella_spettri(self, dati=None):
+        """Cartella delle misure scelta dalla pagina, o quella della scansione."""
+        indicata = (dati or {}).get('cartella', '')
+        if indicata:
+            return indicata
+        if self._spettri:
+            return self._spettri.get('cartella', '')
+        return self.scansione.get('rumore', {}).get('misure', '')
+
+    def _azione_spettri_stato(self, dati):
+        """Cartella di partenza e PDF proposto, senza leggere niente."""
+        ramo = self.scansione.get('rumore', {})
+        return {
+            'cartella': self._cartella_spettri(dati),
+            'caricati': bool(self._spettri),
+            'pdf': os.path.join(ramo.get('output', ''), spettri.NOME_PDF)
+                   if ramo.get('output') else '',
+        }
+
+    def _azione_carica_spettri(self, dati):
+        """
+        Legge i profili temporali e restituisce i grafici gia' disegnati.
+
+        Le serie restano in Python: alla pagina va solo il PNG, che e' quello
+        che le serve, e mandarle sarebbe un JSON da decine di megabyte.
+        """
+        par = configurazione.parametri_rumore()
+        esito = spettri.carica(
+            self._cartella_spettri(dati),
+            self.scansione.get('scheda', ''),
+            str(par.get('VERSIONE_FIRMWARE', '2')))
+        self._spettri = esito
+        return self._spettri_per_pagina(bool(dati.get('per_gruppo')))
+
+    def _azione_grafici_spettri(self, dati):
+        """Ridisegna i grafici gia' in memoria (cambio di vista)."""
+        if not self._spettri:
+            return {'cartella': '', 'misure': [], 'avvisi': [], 'caricati': False}
+        return self._spettri_per_pagina(bool(dati.get('per_gruppo')))
+
+    def _spettri_per_pagina(self, per_gruppo):
+        misure = []
+        for misura in spettri.ordina(self._spettri['misure'], per_gruppo):
+            voce = {c: misura[c] for c in ('id', 'descrizione', 'grom', 'grom_nome',
+                                           'cartella', 'file', 'errore')}
+            voce['punti'] = len(misura['leq'])
+            voce['png'] = '' if misura['errore'] else spettri.png(misura, per_gruppo)
+            misure.append(voce)
+        return {'cartella': self._spettri.get('cartella', ''),
+                'avvisi': self._spettri.get('avvisi', []),
+                'misure': misure, 'caricati': True}
+
+    def _azione_esporta_spettri_pdf(self, dati):
+        if not self._spettri or not self._spettri.get('misure'):
+            return {'errore': 'Prima carica gli spettri con «Visualizza spettri».'}
+        percorso = dati.get('percorso', '')
+        if not percorso:
+            output = self.scansione.get('rumore', {}).get('output', '')
+            if not output:
+                return {'errore': 'Cartella output del rumore non disponibile.'}
+            percorso = os.path.join(output, spettri.NOME_PDF)
+        return spettri.esporta_pdf(self._spettri['misure'], percorso,
+                                   bool(dati.get('per_gruppo')))
 
     # ---- vibrazioni ---------------------------------------------------
     def _azione_risultati_vibrazioni(self, _):

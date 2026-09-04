@@ -53,6 +53,11 @@ const S = {
   risultatiRumore: null,
   misure: null,
   medieSporche: false,
+  spettri: null,            // {cartella, misure: [{id, descrizione, grom, png}], avvisi}
+  spettriPiatti: false,
+  spettriInCorso: false,
+  cartellaSpettri: '',
+  pdfSpettri: '',
   attrezzature: null,
   attrezzatureSporche: {},
   risultatiVibrazioni: null,
@@ -189,6 +194,7 @@ const VOCI = {
   log: { icona: 'ph ph-terminal-window', nome: 'Log di esecuzione', sempre: true },
   superamenti: { icona: 'ph ph-warning-diamond', nome: 'Superamenti', ramo: 'rumore' },
   misure: { icona: 'ph ph-table', nome: 'Misure singole', ramo: 'rumore' },
+  spettri: { icona: 'ph ph-wave-sine', nome: 'Spettri', ramo: 'rumore', primaDellAnalisi: true },
   attrezzature: { icona: 'ph ph-target', nome: 'Attrezzature HAV/WBV', ramo: 'vibrazioni' },
   esposizioni: { icona: 'ph ph-warning-diamond', nome: 'Esposizioni A(8)', ramo: 'vibrazioni' },
   relazione: { icona: 'ph ph-file-doc', nome: 'Relazione Word', sempre: true },
@@ -206,6 +212,8 @@ function vociVisibili() {
 function bloccata(chiave) {
   const voce = VOCI[chiave];
   if (!voce || voce.sempre) return !S.scansione && chiave !== 'cartelle';
+  // gli spettri si leggono dai file grezzi: bastano la cartella e i dati
+  if (voce.primaDellAnalisi) return !(S.scansione && S.scansione.valida);
   if (voce.ramo === 'rumore') return !(S.risultatiRumore && S.risultatiRumore.disponibile);
   if (voce.ramo === 'vibrazioni') return !(S.risultatiVibrazioni && S.risultatiVibrazioni.disponibile);
   return false;
@@ -327,6 +335,7 @@ async function vai(schermata) {
   if (schermata === 'schede' && !S.schede) await caricaSchede();
   if (schermata === 'superamenti' && !S.risultatiRumore) await caricaRisultatiRumore();
   if (schermata === 'misure' && !S.misure) await caricaMisure();
+  if (schermata === 'spettri' && !S.cartellaSpettri) await statoSpettri();
   if (schermata === 'attrezzature' && !S.attrezzature) await caricaAttrezzature();
   if (schermata === 'esposizioni' && !S.risultatiVibrazioni) await caricaRisultatiVibrazioni();
   if (schermata === 'relazione' && !S.relazione.dati) await caricaRelazione();
@@ -935,6 +944,91 @@ SCHERMATE.misure = function () {
 };
 
 // ---------------------------------------------------------------------------
+// Schermata: Spettri (rumore)
+// ---------------------------------------------------------------------------
+
+/* Un grafico per misura, uno sotto l'altro. I PNG arrivano gia' disegnati da
+   Python (matplotlib): la pagina li impagina e basta. */
+SCHERMATE.spettri = function () {
+  const dati = S.spettri;
+  const piatto = S.spettriPiatti;
+  const query = (S.querySpettri || '').toLowerCase();
+
+  const barra = `
+  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+    <div class="field" style="flex:1;min-width:220px"><label>Cartella delle misure</label>
+      <input class="input mono" style="font-size:12.5px" id="campo-spettri" value="${esc(S.cartellaSpettri)}">
+    </div>
+    <button class="btn btn-secondary" data-azione="scegli-spettri"><i class="ph ph-folder-open"></i>Sfoglia…</button>
+    <button class="btn btn-primary" data-azione="carica-spettri"${S.spettriInCorso ? ' disabled' : ''}><i class="ph ph-wave-sine"></i>Visualizza spettri</button>
+    <button class="btn btn-secondary" data-azione="pdf-spettri"${dati ? '' : ' disabled'}><i class="ph ph-file-pdf"></i>Stampa PDF</button>
+    <button class="btn btn-secondary" data-azione="pdf-spettri-in"${dati ? '' : ' disabled'}><i class="ph ph-floppy-disk"></i>Salva PDF in…</button>
+  </div>`;
+
+  if (S.spettriInCorso) {
+    return `${bandaMessaggio()}
+      ${intestazione('Spettri', 'lettura dei profili nel tempo dai file di misura…')}
+      ${barra}
+      <p class="msub">caricamento…</p>`;
+  }
+
+  const misure = !dati ? [] : dati.misure.filter((m) => !query
+    || String(m.id || '').toLowerCase().includes(query)
+    || String(m.descrizione || '').toLowerCase().includes(query));
+
+  const scheda = (m) => `
+    <div style="border:1px solid var(--color-divider);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;gap:8px;align-items:baseline">
+        <span class="mono" style="color:var(--color-accent)">${esc(m.id)}</span>
+        <span style="font-size:12.5px">${esc(m.descrizione) || '<span style="opacity:.5">senza descrizione</span>'}</span>
+        ${!piatto && m.grom ? `<span class="tag" style="margin-left:auto">GrOm ${esc(m.grom)}</span>` : ''}
+        <span class="mono" style="${piatto || !m.grom ? 'margin-left:auto;' : ''}font-size:11px;opacity:.45">${esc(m.file)}</span>
+      </div>
+      ${m.errore
+        ? `<div class="avviso"><i class="ph-fill ph-warning-circle"></i><div>${esc(m.errore)}</div></div>`
+        : `<img src="${m.png}" alt="spettro ${esc(m.id)}" style="width:100%;border-radius:4px;background:#fff">`}
+    </div>`;
+
+  let corpo = '';
+  if (!dati) {
+    corpo = `<p class="msub">Premi «Visualizza spettri» per leggere i profili nel tempo dalle cartelle di misura. I dati restano in memoria e non vengono salvati.</p>`;
+  } else if (!misure.length) {
+    corpo = `<p class="msub">nessuno spettro</p>`;
+  } else if (piatto) {
+    corpo = misure.map(scheda).join('');
+  } else {
+    let gruppoCorrente = null;
+    for (const m of misure) {
+      const codice = m.grom || '';
+      if (codice !== gruppoCorrente) {
+        gruppoCorrente = codice;
+        corpo += `<div style="background:color-mix(in srgb,var(--color-accent) 10%,transparent);border-radius:6px;font-size:11.5px;padding:6px 9px">
+          <span class="mono" style="opacity:.6;margin-right:8px">GrOm ${esc(codice) || '—'}</span>${esc(m.grom_nome)}</div>`;
+      }
+      corpo += scheda(m);
+    }
+  }
+
+  const avvisi = (dati && dati.avvisi || []).map((a) =>
+    `<div class="avviso"><i class="ph-fill ph-warning-circle"></i><div>${esc(a)}</div></div>`).join('');
+
+  return `
+  ${bandaMessaggio()}
+  ${intestazione('Spettri',
+      dati ? `${misure.length} spettri · LeqA nel tempo, letti dai file di misura`
+           : 'andamento del LeqA nel tempo, letto dai file di misura',
+      `<div style="display:flex;gap:8px;align-items:center">
+        <input class="input" style="width:220px;font-size:12px" placeholder="Cerca compito o ID misura…" data-query-spettri value="${esc(S.querySpettri || '')}">
+        <div class="seg">
+          <label class="seg-opt${!piatto ? ' on' : ''}"><input type="radio" name="ragg-spettri" data-ragg-spettri value="gruppo" ${!piatto ? 'checked' : ''}>Per gruppo</label>
+          <label class="seg-opt${piatto ? ' on' : ''}"><input type="radio" name="ragg-spettri" data-ragg-spettri value="piatto" ${piatto ? 'checked' : ''}>Elenco piatto</label>
+        </div></div>`)}
+  ${barra}
+  ${avvisi}
+  <div class="scroll-tab" style="flex:1;display:flex;flex-direction:column;gap:10px;padding-right:4px">${corpo}</div>`;
+};
+
+// ---------------------------------------------------------------------------
 // Schermata: Attrezzature HAV/WBV (vibrazioni)
 // ---------------------------------------------------------------------------
 
@@ -1277,6 +1371,33 @@ async function caricaMisure() {
   S.medieSporche = false;
 }
 
+/* Gli spettri non si caricano da soli entrando nella schermata: leggere tutti
+   i file grezzi costa secondi, quindi lo si fa solo su «Visualizza spettri». */
+async function statoSpettri() {
+  const esito = await chiama('spettri_stato', { cartella: S.cartellaSpettri });
+  S.cartellaSpettri = esito.cartella || '';
+  S.pdfSpettri = S.pdfSpettri || esito.pdf || '';
+}
+
+async function caricaSpettri() {
+  S.spettriInCorso = true;
+  disegna();
+  const esito = await chiama('carica_spettri',
+    { cartella: S.cartellaSpettri, per_gruppo: !S.spettriPiatti });
+  S.spettriInCorso = false;
+  if (esito.errore) { S.spettri = null; messaggio(esito.errore, 'errore'); return; }
+  S.spettri = esito;
+  S.cartellaSpettri = esito.cartella || S.cartellaSpettri;
+  disegna();
+}
+
+async function ridisegnaSpettri() {
+  if (!S.spettri) { disegna(); return; }
+  const esito = await chiama('grafici_spettri', { per_gruppo: !S.spettriPiatti });
+  if (!esito.errore) S.spettri = esito;
+  disegna();
+}
+
 async function caricaAttrezzature() {
   S.attrezzature = await chiama('leggi_attrezzature', {});
   S.attrezzatureSporche = {};
@@ -1294,6 +1415,7 @@ async function caricaRelazione() {
 
 async function ricaricaTutto() {
   S.schede = null; S.risultatiRumore = null; S.misure = null;
+  S.spettri = null; S.cartellaSpettri = ''; S.pdfSpettri = '';
   S.attrezzature = null; S.risultatiVibrazioni = null; S.relazione.dati = null;
   await caricaRisultatiRumore();
   await caricaRisultatiVibrazioni();
@@ -1396,6 +1518,48 @@ suClic('[data-azione="salva-medie"]', async () => {
   if (esito.ok) { S.medieSporche = false; messaggio('Valori misurati salvati in averaged_data.csv', 'ok'); }
   else messaggio(esito.errore || 'Salvataggio non riuscito.', 'errore');
 });
+
+// ---- spettri ----
+suInput('#campo-spettri', (nodo) => { S.cartellaSpettri = nodo.value; });
+
+suInput('[data-query-spettri]', (nodo) => {
+  S.querySpettri = nodo.value;
+  const posizione = nodo.selectionStart;
+  disegna();
+  const nuovo = document.querySelector('[data-query-spettri]');
+  if (nuovo) { nuovo.focus(); nuovo.setSelectionRange(posizione, posizione); }
+});
+
+suModifica('[data-ragg-spettri]', async (nodo) => {
+  S.spettriPiatti = nodo.value === 'piatto';
+  await ridisegnaSpettri();
+});
+
+suClic('[data-azione="scegli-spettri"]', async () => {
+  const scelta = await scegliCartella(S.cartellaSpettri || S.root);
+  if (!scelta) return;
+  S.cartellaSpettri = scelta;
+  S.spettri = null;
+  await caricaSpettri();
+});
+
+suClic('[data-azione="carica-spettri"]', () => caricaSpettri());
+
+suClic('[data-azione="pdf-spettri"]', () => stampaSpettri(S.pdfSpettri));
+
+suClic('[data-azione="pdf-spettri-in"]', async () => {
+  const esito = await chiama('dialogo_salva_file',
+    { percorso: S.pdfSpettri, filtro: 'pdf' });
+  if (esito.percorso) { S.pdfSpettri = esito.percorso; await stampaSpettri(esito.percorso); }
+});
+
+async function stampaSpettri(percorso) {
+  const esito = await chiama('esporta_spettri_pdf',
+    { percorso: percorso || '', per_gruppo: !S.spettriPiatti });
+  if (esito.errore) { messaggio(esito.errore, 'errore'); return; }
+  S.pdfSpettri = esito.percorso;
+  messaggio(`${esito.numero} spettri stampati in ${nomeBase(esito.percorso)}`, 'ok');
+}
 
 // ---- superamenti ----
 suModifica('[data-vista-sup]', (nodo) => { S.vistaSuperamenti = nodo.value; disegna(); });
