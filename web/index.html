@@ -27,6 +27,10 @@
     <div class="side" id="side"></div>
     <div class="main" id="main"></div>
   </div>
+
+  <!-- spia di attivita': sta fuori dalla shell perche' app.js riscrive
+       #side e #main a ogni disegno e l'animazione ripartirebbe da capo -->
+  <div class="spia riposo" id="spia" title="stato dell'applicazione"></div>
 </div>
 
 <script src="app.js"></script>

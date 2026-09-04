@@ -20,10 +20,15 @@ let ponte = null;
 const inAttesaDelPonte = [];
 
 function chiama(azione, dati) {
+  // ogni operazione passa di qui: e' il punto in cui la spia di attivita'
+  // sa che c'e' qualcosa in corso, senza dover toccare i singoli pulsanti
+  spiaAccendi();
   return new Promise((risolvi) => {
     const esegui = () => ponte.chiama(azione, JSON.stringify(dati || {}), (risposta) => {
       let esito;
       try { esito = JSON.parse(risposta); } catch (e) { esito = { errore: 'risposta non valida' }; }
+      if (esito && esito.errore) S.spia.errore = true;
+      spiaSpegni();
       risolvi(esito);
     });
     if (ponte) esegui(); else inAttesaDelPonte.push(esegui);
@@ -63,6 +68,10 @@ const S = {
   risultatiVibrazioni: null,
 
   esecuzione: { inCorso: false, passi: [], righe: [], filtro: 'tutti', coda: true, inizio: 0 },
+
+  // spia di attivita': quante chiamate sono in volo, se c'e' stato un errore
+  // e fino a quando tenerla accesa comunque (antisfarfallio)
+  spia: { attive: 0, errore: false, finoA: 0 },
 
   relazione: { campi: {}, dati: null, scheda: 'generali', messaggio: '',
                esito: '', inCorso: false, stato: {} },
@@ -116,6 +125,7 @@ for (const tipo of Object.keys(gestori)) {
 }
 
 function messaggio(testo, genere) {
+  if (genere === 'errore') S.spia.errore = true;
   S.messaggio = testo ? { testo, genere: genere || 'ok' } : null;
   disegna();
   if (testo) {
@@ -123,6 +133,53 @@ function messaggio(testo, genere) {
     messaggio._t = setTimeout(() => { S.messaggio = null; disegna(); }, 4200);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Spia di attivita'
+// ---------------------------------------------------------------------------
+
+/*
+ * Corona verde chiara a riposo, tre quarti gialli che ruotano mentre qualcosa
+ * e' in corso, tre quarti rossi fermi dopo un errore. Il rosso resta finche'
+ * non riparte un'operazione: se quella finisce bene si torna al verde.
+ *
+ * Si tocca solo la classe del nodo, che sta in index.html e non viene mai
+ * ridisegnato: cosi' la rotazione non riparte da capo a ogni disegno.
+ */
+
+const DURATA_MINIMA_SPIA = 400;   // ms: sotto, le chiamate brevi lampeggerebbero
+
+function spiaOccupata() {
+  return S.spia.attive > 0 || S.esecuzione.inCorso
+    || S.relazione.inCorso || S.spettriInCorso
+    || Date.now() < S.spia.finoA;
+}
+
+function spiaAccendi() {
+  S.spia.attive += 1;
+  S.spia.errore = false;
+  S.spia.finoA = Date.now() + DURATA_MINIMA_SPIA;
+  aggiornaSpia();
+}
+
+function spiaSpegni() {
+  S.spia.attive = Math.max(0, S.spia.attive - 1);
+  aggiornaSpia();
+  const restano = S.spia.finoA - Date.now();
+  if (restano > 0) setTimeout(aggiornaSpia, restano + 20);
+}
+
+function aggiornaSpia() {
+  const nodo = el('spia');
+  if (!nodo) return;
+  const stato = spiaOccupata() ? 'corso' : (S.spia.errore ? 'errore' : 'riposo');
+  const classe = `spia ${stato}`;
+  if (nodo.className !== classe) nodo.className = classe;
+}
+
+/* un clic azzera l'errore: la spia torna verde senza aspettare l'operazione
+   successiva */
+suClic('#spia', () => { S.spia.errore = false; aggiornaSpia(); });
 
 // ---------------------------------------------------------------------------
 // Barra del titolo
@@ -311,6 +368,7 @@ function disegna() {
   disegnaSidebar();
   const disegnaSchermata = SCHERMATE[S.schermata] || SCHERMATE.cartelle;
   el('main').innerHTML = disegnaSchermata();
+  aggiornaSpia();
 }
 
 function intestazione(titolo, sottotitolo, destra) {
@@ -1379,23 +1437,31 @@ async function statoSpettri() {
   S.pdfSpettri = S.pdfSpettri || esito.pdf || '';
 }
 
-async function caricaSpettri() {
+/* Lettura e disegno girano in un thread di Python: la chiamata dice solo se
+   l'operazione e' partita, i dati arrivano sul canale degli eventi. Cosi' il
+   ciclo di Qt resta libero, la pagina continua a ridipingere e la spia di
+   attivita' si vede girare. */
+async function avviaSpettri(azione, dati) {
   S.spettriInCorso = true;
   disegna();
-  const esito = await chiama('carica_spettri',
-    { cartella: S.cartellaSpettri, per_gruppo: !S.spettriPiatti });
-  S.spettriInCorso = false;
-  if (esito.errore) { S.spettri = null; messaggio(esito.errore, 'errore'); return; }
-  S.spettri = esito;
-  S.cartellaSpettri = esito.cartella || S.cartellaSpettri;
-  disegna();
+  const esito = await chiama(azione, dati);
+  if (!esito.ok) {
+    S.spettriInCorso = false;
+    messaggio(esito.errore || 'Operazione non avviata.', 'errore');
+    disegna();
+    return false;
+  }
+  return true;
 }
 
-async function ridisegnaSpettri() {
-  if (!S.spettri) { disegna(); return; }
-  const esito = await chiama('grafici_spettri', { per_gruppo: !S.spettriPiatti });
-  if (!esito.errore) S.spettri = esito;
-  disegna();
+function caricaSpettri() {
+  return avviaSpettri('carica_spettri',
+    { cartella: S.cartellaSpettri, per_gruppo: !S.spettriPiatti });
+}
+
+function ridisegnaSpettri() {
+  if (!S.spettri) { disegna(); return Promise.resolve(false); }
+  return avviaSpettri('grafici_spettri', { per_gruppo: !S.spettriPiatti });
 }
 
 async function caricaAttrezzature() {
@@ -1553,12 +1619,9 @@ suClic('[data-azione="pdf-spettri-in"]', async () => {
   if (esito.percorso) { S.pdfSpettri = esito.percorso; await stampaSpettri(esito.percorso); }
 });
 
-async function stampaSpettri(percorso) {
-  const esito = await chiama('esporta_spettri_pdf',
+function stampaSpettri(percorso) {
+  return avviaSpettri('esporta_spettri_pdf',
     { percorso: percorso || '', per_gruppo: !S.spettriPiatti });
-  if (esito.errore) { messaggio(esito.errore, 'errore'); return; }
-  S.pdfSpettri = esito.percorso;
-  messaggio(`${esito.numero} spettri stampati in ${nomeBase(esito.percorso)}`, 'ok');
 }
 
 // ---- superamenti ----
@@ -1729,7 +1792,10 @@ async function riceviEvento(evento) {
         if (evento.nome) passo.nome = evento.nome;
       }
       if (evento.stato === 'corso') aggiungiRiga('info', `▸ ${evento.nome}`);
-      if (evento.stato === 'errore') aggiungiRiga('error', `✕ ${evento.nome}: ${evento.msg || ''}`);
+      if (evento.stato === 'errore') {
+        S.spia.errore = true;
+        aggiungiRiga('error', `✕ ${evento.nome}: ${evento.msg || ''}`);
+      }
       if (evento.stato === 'saltato') aggiungiRiga('warning', `− ${evento.nome} saltato`);
       break;
     }
@@ -1743,9 +1809,23 @@ async function riceviEvento(evento) {
         S.relazione.inCorso = false;
         S.relazione.messaggio = evento.messaggio || '';
         S.relazione.esito = evento.ok ? 'ok' : 'errore';
+        if (!evento.ok) S.spia.errore = true;
         if (evento.stato) S.relazione.stato = evento.stato;
         aggiungiRiga(evento.ok ? 'info' : 'error',
           `Relazione · ${evento.messaggio || ''}`);
+      }
+      break;
+
+    case 'spettri':
+      S.spettriInCorso = false;
+      if (!evento.ok) {
+        messaggio(evento.errore || 'Operazione sugli spettri non riuscita.', 'errore');
+      } else if (evento.fase === 'pdf') {
+        S.pdfSpettri = evento.percorso || S.pdfSpettri;
+        messaggio(`${evento.numero} spettri stampati in ${nomeBase(evento.percorso)}`, 'ok');
+      } else {
+        S.spettri = evento.dati;
+        S.cartellaSpettri = (evento.dati && evento.dati.cartella) || S.cartellaSpettri;
       }
       break;
 
@@ -1756,12 +1836,14 @@ async function riceviEvento(evento) {
       break;
 
     case 'interrotta':
+      S.spia.errore = true;
       aggiungiRiga('warning', 'Analisi interrotta su richiesta.');
       for (const p of e.passi) if (p.stato === 'corso') p.stato = 'errore';
       break;
 
     case 'fine':
       e.inCorso = false;
+      if (!evento.ok) S.spia.errore = true;
       e.durata = evento.durata;
       aggiungiRiga(evento.ok ? 'info' : 'error',
         evento.ok ? `Analisi conclusa in ${evento.durata} s` : 'Analisi conclusa con errori');

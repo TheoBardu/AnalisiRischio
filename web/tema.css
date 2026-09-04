@@ -27,6 +27,10 @@
   --colore-errore: #b22222;
   --colore-ok: #32cd32;
 
+  /* corona della spia di attivita': a riposo deve leggersi senza attirare
+     l'occhio, quindi un verde piu' tenue di quello delle classi di rischio */
+  --colore-spia-riposo: #7bd88f;
+
   /* testo su fondo scuro, dove il colore pieno risulterebbe illeggibile */
   --colore-testo-allerta: #ff8a80;
   --colore-testo-ok: #8fe08f;
@@ -71,6 +75,8 @@
   --colore-avviso: #a06400;
   --colore-errore: #a51c1c;
   --colore-ok: #1f7a1f;
+
+  --colore-spia-riposo: #3f9c58;
 
   --colore-testo-allerta: #b3241a;
   --colore-testo-ok: #1f7a1f;

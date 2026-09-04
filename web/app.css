@@ -104,3 +104,36 @@ body { padding: 0; }
 .seg-vert .seg-opt + .seg-opt {
   border-left: 0; border-top: 1px solid var(--color-divider);
 }
+
+/*
+ * Spia di attivita', nell'angolo in basso a sinistra.
+ *
+ * Corona verde chiara intera quando non si sta facendo niente, tre quarti
+ * gialli che ruotano mentre una qualunque operazione e' in corso, tre quarti
+ * rossi fermi dopo un errore. I tre quarti si ottengono lasciando trasparente
+ * il bordo superiore del cerchio.
+ *
+ * Il nodo vive in index.html e non viene mai ridisegnato: cambia solo la
+ * classe, cosi' la rotazione resta continua anche mentre l'interfaccia si
+ * ridisegna.
+ */
+.spia {
+  position: fixed; left: 11px; bottom: 9px; z-index: 5;
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 3px solid var(--colore-spia-riposo);
+  cursor: pointer;
+}
+/* la sidebar lascia il posto alla spia sotto al pulsante di avvio */
+.side { padding-bottom: 34px; }
+
+.spia.corso {
+  border-color: var(--colore-avviso);
+  border-top-color: transparent;
+  animation: gira 0.9s linear infinite;
+}
+.spia.errore {
+  border-color: var(--colore-errore);
+  border-top-color: transparent;
+}
+
+@keyframes gira { to { transform: rotate(360deg); } }

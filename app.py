@@ -78,6 +78,9 @@ class Ponte(QObject):
         # la scrittura dei .docx gira in un thread: il sottoprocesso dura
         # qualche secondo e bloccarci l'interfaccia la farebbe sembrare morta
         self.relazione_in_corso = False
+        # anche la lettura degli spettri dura secondi: se girasse nella slot
+        # bloccherebbe il ciclo di Qt e la pagina resterebbe congelata
+        self.spettri_in_corso = False
 
     # ------------------------------------------------------------------
     def _inoltra_evento(self, evento):
@@ -159,6 +162,7 @@ class Ponte(QObject):
     def _azione_scansiona(self, dati):
         root = dati.get('root', '')
         self._spettri = None
+        self.spettri_in_corso = False
         self.scansione = progetto.scansiona(root)
         if self.scansione.get('valida'):
             configurazione.aggiungi_progetto_recente(self.scansione['root'])
@@ -293,26 +297,62 @@ class Ponte(QObject):
                    if ramo.get('output') else '',
         }
 
+    def _avvia_spettri(self, lavoro, fase):
+        """
+        Fa partire un'operazione lunga sugli spettri in un thread.
+
+        Leggere i file e disegnare le figure dura secondi: dentro la slot
+        chiama() bloccherebbe il ciclo degli eventi di Qt, la vista non
+        ridipingerebbe e la pagina resterebbe congelata (spia di attivita'
+        compresa). Come per la scrittura dei .docx, la slot ritorna subito e
+        l'esito arriva sul canale degli eventi.
+        """
+        if self.spettri_in_corso:
+            return {'ok': False, 'errore': 'Un\'operazione sugli spettri e\' gia\' in corso.'}
+        self.spettri_in_corso = True
+
+        def corpo():
+            try:
+                esito = lavoro()
+                evento = dict(esito, tipo='spettri', fase=fase,
+                              ok=not esito.get('errore'))
+            except Exception as errore:
+                traceback.print_exc()
+                evento = {'tipo': 'spettri', 'fase': fase, 'ok': False,
+                          'errore': f'{type(errore).__name__}: {errore}'}
+            finally:
+                self.spettri_in_corso = False
+            self._inoltra_evento(evento)
+
+        threading.Thread(target=corpo, daemon=True).start()
+        return {'ok': True, 'avviata': True}
+
     def _azione_carica_spettri(self, dati):
         """
-        Legge i profili temporali e restituisce i grafici gia' disegnati.
+        Legge i profili temporali e disegna i grafici, in un thread.
 
         Le serie restano in Python: alla pagina va solo il PNG, che e' quello
         che le serve, e mandarle sarebbe un JSON da decine di megabyte.
         """
         par = configurazione.parametri_rumore()
-        esito = spettri.carica(
-            self._cartella_spettri(dati),
-            self.scansione.get('scheda', ''),
-            str(par.get('VERSIONE_FIRMWARE', '2')))
-        self._spettri = esito
-        return self._spettri_per_pagina(bool(dati.get('per_gruppo')))
+        cartella = self._cartella_spettri(dati)
+        scheda = self.scansione.get('scheda', '')
+        versione = str(par.get('VERSIONE_FIRMWARE', '2'))
+        per_gruppo = bool(dati.get('per_gruppo'))
+
+        def lavoro():
+            self._spettri = spettri.carica(cartella, scheda, versione)
+            return {'dati': self._spettri_per_pagina(per_gruppo)}
+
+        return self._avvia_spettri(lavoro, 'grafici')
 
     def _azione_grafici_spettri(self, dati):
         """Ridisegna i grafici gia' in memoria (cambio di vista)."""
         if not self._spettri:
-            return {'cartella': '', 'misure': [], 'avvisi': [], 'caricati': False}
-        return self._spettri_per_pagina(bool(dati.get('per_gruppo')))
+            return {'ok': False, 'errore': 'Nessuno spettro caricato.'}
+        per_gruppo = bool(dati.get('per_gruppo'))
+        return self._avvia_spettri(
+            lambda: {'dati': self._spettri_per_pagina(per_gruppo)}, 'grafici')
 
     def _spettri_per_pagina(self, per_gruppo):
         misure = []
@@ -328,15 +368,21 @@ class Ponte(QObject):
 
     def _azione_esporta_spettri_pdf(self, dati):
         if not self._spettri or not self._spettri.get('misure'):
-            return {'errore': 'Prima carica gli spettri con «Visualizza spettri».'}
+            return {'ok': False,
+                    'errore': 'Prima carica gli spettri con «Visualizza spettri».'}
         percorso = dati.get('percorso', '')
         if not percorso:
             output = self.scansione.get('rumore', {}).get('output', '')
             if not output:
-                return {'errore': 'Cartella output del rumore non disponibile.'}
+                return {'ok': False,
+                        'errore': 'Cartella output del rumore non disponibile.'}
             percorso = os.path.join(output, spettri.NOME_PDF)
-        return spettri.esporta_pdf(self._spettri['misure'], percorso,
-                                   bool(dati.get('per_gruppo')))
+        per_gruppo = bool(dati.get('per_gruppo'))
+
+        def lavoro():
+            return spettri.esporta_pdf(self._spettri['misure'], percorso, per_gruppo)
+
+        return self._avvia_spettri(lavoro, 'pdf')
 
     # ---- vibrazioni ---------------------------------------------------
     def _azione_risultati_vibrazioni(self, _):

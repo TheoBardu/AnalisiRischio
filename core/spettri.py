@@ -247,21 +247,26 @@ def _disegna(asse, misura):
     asse.margins(x=0.01)
 
 
+# Si usa Figure/FigureCanvasAgg e non pyplot: pyplot tiene un registro globale
+# di figure e non e' pensato per essere chiamato fuori dal thread principale,
+# mentre qui il disegno gira nel thread degli spettri.
+def _figura(larghezza, altezza, dpi):
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+    figura = Figure(figsize=(larghezza, altezza), dpi=dpi)
+    FigureCanvasAgg(figura)
+    return figura
+
+
 def png(misura, per_gruppo=False, larghezza=9.0, altezza=2.6, dpi=110):
     """Grafico di una misura come data URI PNG, per la pagina."""
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
-
-    figura, asse = plt.subplots(figsize=(larghezza, altezza), dpi=dpi)
-    try:
-        _disegna(asse, misura)
-        asse.set_title(titolo(misura, per_gruppo), fontsize=10, loc='left')
-        figura.tight_layout()
-        buffer = io.BytesIO()
-        figura.savefig(buffer, format='png')
-    finally:
-        plt.close(figura)
+    figura = _figura(larghezza, altezza, dpi)
+    asse = figura.subplots()
+    _disegna(asse, misura)
+    asse.set_title(titolo(misura, per_gruppo), fontsize=10, loc='left')
+    figura.tight_layout()
+    buffer = io.BytesIO()
+    figura.savefig(buffer, format='png')
     return 'data:image/png;base64,' + base64.b64encode(buffer.getvalue()).decode('ascii')
 
 
@@ -271,9 +276,6 @@ def esporta_pdf(misure, percorso, per_gruppo=False):
 
     OUTPUT: {'percorso'} oppure {'errore'}
     """
-    import matplotlib
-    matplotlib.use('Agg')
-    import matplotlib.pyplot as plt
     from matplotlib.backends.backend_pdf import PdfPages
 
     disegnabili = [m for m in ordina(misure, per_gruppo) if m.get('leq')]
@@ -288,15 +290,13 @@ def esporta_pdf(misure, percorso, per_gruppo=False):
     with PdfPages(percorso) as pdf:
         for inizio in range(0, len(disegnabili), per_pagina):
             blocco = disegnabili[inizio:inizio + per_pagina]
-            figura, assi = plt.subplots(per_pagina, 1, figsize=(8.27, 11.69), dpi=150)
-            try:
-                for asse, misura in zip(assi, blocco):
-                    _disegna(asse, misura)
-                    asse.set_title(titolo(misura, per_gruppo), fontsize=9, loc='left')
-                for asse in assi[len(blocco):]:
-                    asse.axis('off')
-                figura.tight_layout(pad=2.0)
-                pdf.savefig(figura)
-            finally:
-                plt.close(figura)
+            figura = _figura(8.27, 11.69, 150)
+            assi = figura.subplots(per_pagina, 1)
+            for asse, misura in zip(assi, blocco):
+                _disegna(asse, misura)
+                asse.set_title(titolo(misura, per_gruppo), fontsize=9, loc='left')
+            for asse in assi[len(blocco):]:
+                asse.axis('off')
+            figura.tight_layout(pad=2.0)
+            pdf.savefig(figura)
     return {'percorso': percorso, 'numero': len(disegnabili)}
