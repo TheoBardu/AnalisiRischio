@@ -167,7 +167,10 @@ dei backend avevano scritti nel codice, quindi un progetto nuovo parte gia'
 compilato. Salva/Carica conservano tutto in `~/.analisirischio/relazione/`.
 
 I documenti finiscono in `<ramo>/output/Relazione_RUM.docx` e
-`Relazione_VIB.docx`.
+`Relazione_VIB.docx`. La prima pagina ha intestazione e pie' di pagina del
+frontespizio scelto (vuoti se il frontespizio non li ha): li porta nel
+documento `applica_intestazioni_frontespizio()` dei due `write_docx`, chiamata
+dal runner dopo il render. Dalla seconda pagina valgono quelli del modello.
 
 ### Perche' anche qui un runner separato
 

@@ -17,9 +17,10 @@ I due script dei backend non sono richiamabili cosi' come sono:
         parametri di calcolo da parameters.py.
 
 In entrambi i casi si sovrascrivono i globali dei percorsi con quelli che
-arrivano dall'interfaccia e si ripete la sola SEZIONE 3 - l'unione dei
-dizionari - qui dentro, cosi' i passi hanno una granularita' e i backend
-restano intatti.
+arrivano dall'interfaccia e si ripetono qui dentro la SEZIONE 3 - l'unione dei
+dizionari - e la SEZIONE 4 - render, intestazioni della prima pagina prese dal
+frontespizio con applica_intestazioni_frontespizio() del backend, salvataggio -
+cosi' i passi hanno una granularita' e i backend restano intatti.
 
 USO: python runner_relazione.py <configurazione.json>
 """
@@ -109,6 +110,22 @@ def _contesto_utente(cfg, ramo):
     for chiave in modulo_contesto.CHIAVI_CONTROLLO:
         campi.pop(chiave, None)
     return campi
+
+
+def _applica_intestazioni(backend, doc, frontespizio, contesto):
+    """
+    Dopo il render, come nella SEZIONE 4 dei backend: intestazione e pie' di
+    pagina della prima pagina sono quelli del frontespizio, non del modello.
+
+    Con un backend che non ha ancora la funzione il documento esce comunque,
+    con le intestazioni del modello, e lo si dice nel log.
+    """
+    applica = getattr(backend, 'applica_intestazioni_frontespizio', None)
+    if applica is None:
+        log('Backend senza applica_intestazioni_frontespizio: prima pagina con '
+            'intestazione e pie\' di pagina del modello', 'warning')
+        return
+    applica(doc, frontespizio, contesto)
 
 
 def _percorsi_documento(cfg, ramo):
@@ -210,6 +227,7 @@ def passi_rumore(cfg, stato):
 
     def scrittura():
         stato['doc'].render(stato['contesto'])
+        _applica_intestazioni(backend, stato['doc'], frontespizio, stato['contesto'])
         stato['doc'].save(uscita)
         stato['uscita'] = uscita
         log(f'Docx scritto: {uscita}')
@@ -304,6 +322,7 @@ def passi_vibrazioni(cfg, stato):
 
     def scrittura():
         stato['doc'].render(stato['contesto'])
+        _applica_intestazioni(backend, stato['doc'], frontespizio, stato['contesto'])
         stato['doc'].save(uscita)
         stato['uscita'] = uscita
         log(f'Docx scritto: {uscita}')
