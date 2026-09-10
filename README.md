@@ -152,10 +152,13 @@ per il dialogo di sistema, oppure percorso scritto a mano) e sotto il menu
 con i `.docx` trovati in quella cartella. La cartella e' un'impostazione
 dell'installazione e finisce in `config.json` come `cartella_frontespizi_rumore`
 e `cartella_frontespizi_vibrazioni`; vuota, vale la sottocartella `RUM/` o
-`VIB/` di `<cartella_modelli>/docx/frontespizi`. Il nome del file scelto,
-invece, e' un dato dell'azienda e sta con gli altri campi. Se nessun file e'
-stato scelto vale quello di `frontespizio_<ramo>` in `config.json`, che e'
-anche la voce che il menu mostra selezionata all'apertura.
+`VIB/` di `<cartella_modelli>/docx/frontespizi`. Il file scelto, invece, e' un
+dato dell'azienda: in `relazione_dati.json` sta con il **percorso completo**,
+ed e' quello che la relazione usa. Il menu elenca solo i `.docx` della cartella
+scelta: se il valore salvato e' vuoto, e' un nome senza cartella (file delle
+versioni precedenti) o punta a un'altra cartella, all'apertura viene riportato
+sul file di pari nome, sul default di `frontespizio_<ramo>` in `config.json` o
+sul primo disponibile, cosi' menu, file e documento dicono sempre la stessa cosa.
 
 Tabelle DPI, gruppi omogenei ed esposizioni A(8) non si compilano: arrivano
 dai risultati dell'analisi e si vedono in sola lettura nelle tre linguette

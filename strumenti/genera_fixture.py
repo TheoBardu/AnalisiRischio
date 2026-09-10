@@ -74,19 +74,21 @@ def main():
         stato['uscita'] = uscita
         stato_relazione[ramo] = stato
 
-    frontespizi = {ramo: configurazione.frontespizi_disponibili(ramo)
-                   for ramo in ('rumore', 'vibrazioni')}
+    # come app.py: le voci del menu sono i percorsi completi dei .docx della
+    # cartella del ramo, e il menu parte dal default
     cartelle_frontespizi = {ramo: configurazione.cartella_frontespizi(ramo)
                             for ramo in ('rumore', 'vibrazioni')}
-
-    # il menu del frontespizio parte dal default, come fa app.py
+    frontespizi = {ramo: [os.path.join(cartelle_frontespizi[ramo], nome)
+                          for nome in configurazione.frontespizi_disponibili(ramo)]
+                   for ramo in ('rumore', 'vibrazioni')}
     campi_relazione = {blocco: contesto_relazione.elenco_campi([blocco])
                        for blocco in ('comuni', 'rumore', 'vibrazioni')}
     for blocco in ('rumore', 'vibrazioni'):
         for campo in campi_relazione[blocco]:
             if campo['tipo'] == 'scelta':
-                campo['valore'] = os.path.basename(
-                    configurazione.config().get(f'frontespizio_{blocco}', ''))
+                campo['valore'] = os.path.join(
+                    cartelle_frontespizi[blocco],
+                    os.path.basename(configurazione.config().get(f'frontespizio_{blocco}', '')))
 
     fixture = {
         'stato_iniziale': {

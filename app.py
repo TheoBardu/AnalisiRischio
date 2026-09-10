@@ -140,7 +140,7 @@ class Ponte(QObject):
             'campi_relazione': {blocco: self._campi_relazione(blocco)
                                 for blocco in ('comuni', 'rumore', 'vibrazioni')},
             'layout_relazione': contesto_relazione.LAYOUT,
-            'frontespizi': {ramo: configurazione.frontespizi_disponibili(ramo)
+            'frontespizi': {ramo: self._frontespizi_disponibili(ramo)
                             for ramo in ('rumore', 'vibrazioni')},
             'cartelle_frontespizi': {ramo: configurazione.cartella_frontespizi(ramo)
                                      for ramo in ('rumore', 'vibrazioni')},
@@ -476,15 +476,32 @@ class Ponte(QObject):
                       'vibrazioni': 'Relazione_VIB.docx'}
 
     @staticmethod
+    def _frontespizi_disponibili(ramo):
+        """
+        Percorsi assoluti dei .docx nella cartella dei frontespizi del ramo.
+
+        Sono i valori delle voci del menu, e quindi quello che finisce in
+        relazione_dati.json: il percorso completo del file scelto.
+        """
+        cartella = configurazione.cartella_frontespizi(ramo)
+        return [os.path.join(cartella, nome)
+                for nome in configurazione.frontespizi_disponibili(ramo)]
+
+    @staticmethod
     def _frontespizio_predefinito(ramo):
         """
-        Nome del frontespizio di default del ramo, senza cartella.
+        Percorso assoluto del frontespizio di default del ramo.
 
         In configurazione sta come 'RUM/nome.docx': della sottocartella non si
         tiene conto, perche' la cartella e' quella scelta dall'interfaccia.
         """
         nome = configurazione.config().get(f'frontespizio_{ramo}', '')
-        return nome if os.path.isabs(nome) else os.path.basename(nome)
+        if not nome:
+            return ''
+        if os.path.isabs(nome):
+            return nome
+        return os.path.join(configurazione.cartella_frontespizi(ramo),
+                            os.path.basename(nome))
 
     def _campi_relazione(self, blocco):
         """
@@ -503,17 +520,15 @@ class Ponte(QObject):
         """
         Percorso del frontespizio del ramo.
 
-        Il nome arriva dal modulo della relazione (dove si sceglie fra i file
-        trovati nella cartella del ramo) oppure, se li' non c'e', dalla
-        configurazione. I nomi senza cartella si cercano nella cartella dei
-        frontespizi del ramo, quella scelta dall'interfaccia.
+        Dal modulo della relazione arriva il percorso completo del file scelto
+        nella cartella del ramo; se manca vale il default della configurazione.
+        Un nome senza cartella (relazione_dati.json delle versioni precedenti)
+        si cerca nella cartella dei frontespizi del ramo.
         """
         chiave = f'frontespizio_{ramo}'
         nome = str((campi or {}).get(chiave, '') or '').strip()
         if not nome:
-            nome = self._frontespizio_predefinito(ramo)
-        if not nome:
-            return ''
+            return self._frontespizio_predefinito(ramo)
         if os.path.isabs(nome):
             return nome
         return os.path.join(configurazione.cartella_frontespizi(ramo), nome)
@@ -550,7 +565,7 @@ class Ponte(QObject):
             'colonne_vib': contesto_relazione.COLONNE_TABELLA_VIB,
             'stato': {ramo: self._stato_relazione(ramo, campi)
                       for ramo in ('rumore', 'vibrazioni')},
-            'frontespizi': {ramo: configurazione.frontespizi_disponibili(ramo)
+            'frontespizi': {ramo: self._frontespizi_disponibili(ramo)
                             for ramo in ('rumore', 'vibrazioni')},
             'cartelle_frontespizi': {ramo: configurazione.cartella_frontespizi(ramo)
                                      for ramo in ('rumore', 'vibrazioni')},

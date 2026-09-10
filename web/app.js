@@ -1217,7 +1217,12 @@ SCHERMATE.relazione = function () {
    */
   const valoreDi = (c) => {
     const salvato = r.campi[c.chiave];
-    if (salvato !== undefined && salvato !== null) return salvato;
+    // un menu con valore vuoto non ha nessuna voce selezionata, e il browser
+    // mostrerebbe la prima come se fosse scelta: la stringa vuota vale come
+    // assente, e si vede il default che il documento userebbe davvero
+    const assente = salvato === undefined || salvato === null
+      || (c.tipo === 'scelta' && salvato === '');
+    if (!assente) return salvato;
     return c.valore !== undefined && c.valore !== null ? c.valore : '';
   };
 
@@ -1252,10 +1257,13 @@ SCHERMATE.relazione = function () {
           data-cartella-frontespizi="${esc(ramo)}" value="${esc(cartella)}" title="cartella dei frontespizi">
         <button class="btn btn-secondary" data-azione="scegli-cartella-frontespizi" data-ramo="${esc(ramo)}"
           title="Scegli la cartella dei frontespizi"><i class="ph ph-folder-open"></i></button></div>`;
-      const elenco = ((S.frontespizi || {})[ramo] || []).slice();
-      if (valore && !elenco.includes(String(valore))) elenco.unshift(String(valore));
+      // le voci sono i percorsi completi dei .docx della cartella (e' quello
+      // che finisce in relazione_dati.json), mostrati con il solo nome
+      const elenco = (S.frontespizi || {})[ramo] || [];
+      const voci = elenco.map((percorso) =>
+        `<option value="${esc(percorso)}"${percorso === String(valore) ? ' selected' : ''}>${esc(nomeBase(percorso))}</option>`).join('');
       const menu = elenco.length
-        ? `<select ${base} ${attributo}>${opzioni(elenco, valore)}</select>`
+        ? `<select ${base} ${attributo}>${voci}</select>`
         : `<div class="mono" style="font-size:11.5px;padding:7px 0;color:${VAR_TENUE}">nessun frontespizio .docx nella cartella</div>`;
       return `<div style="display:flex;flex-direction:column;gap:6px">${rigaCartella}${menu}</div>`;
     }
@@ -1328,7 +1336,7 @@ SCHERMATE.relazione = function () {
       ['modello', nomeBase(S.config[ramo === 'rumore' ? 'modello_relazione_rumore' : 'modello_relazione_vibrazioni'])],
       ['cartella frontespizi', (S.cartelleFrontespizi || {})[ramo] || '—'],
       ['frontespizio', st.frontespizio_presente === false ? 'non trovato'
-        : nomeBase(r.campi[`frontespizio_${ramo}`] || S.config[`frontespizio_${ramo}`] || '')],
+        : nomeBase(frontespizioScelto(ramo))],
       ['documento prodotto', st.uscita || '—'],
     ];
     if (ramo === 'rumore') {
@@ -1490,6 +1498,45 @@ async function caricaRelazione() {
   S.relazione.stato = S.relazione.dati.stato || {};
   S.frontespizi = S.relazione.dati.frontespizi || S.frontespizi;
   S.cartelleFrontespizi = S.relazione.dati.cartelle_frontespizi || S.cartelleFrontespizi;
+  if (allineaFrontespizi()) {
+    // il campo e' cambiato: lo stato dei rami va ricalcolato sul file vero
+    S.relazione.dati = await chiama('relazione_dati', { campi: S.relazione.campi });
+    S.relazione.stato = S.relazione.dati.stato || {};
+  }
+}
+
+/* Percorso del frontespizio del ramo: quello scelto, oppure il default. */
+function frontespizioScelto(ramo) {
+  const campo = ((S.campiRelazione || {})[ramo] || [])
+    .find((c) => c.chiave === `frontespizio_${ramo}`) || {};
+  return S.relazione.campi[`frontespizio_${ramo}`] || campo.valore || '';
+}
+
+/*
+ * Riporta i campi frontespizio_* su un file della cartella corrente.
+ *
+ * Il menu elenca solo i .docx della cartella scelta, e in relazione_dati.json
+ * deve stare il percorso completo di uno di quelli: un valore vuoto, un nome
+ * senza cartella (file salvati dalle versioni precedenti) o un percorso di
+ * un'altra cartella vengono sostituiti dal file di pari nome, dal default o
+ * dal primo disponibile. OUTPUT: true se qualche campo e' cambiato.
+ */
+function allineaFrontespizi() {
+  let cambiato = false;
+  for (const ramo of ['rumore', 'vibrazioni']) {
+    const chiave = `frontespizio_${ramo}`;
+    const elenco = (S.frontespizi || {})[ramo] || [];
+    const attuale = String(S.relazione.campi[chiave] || '');
+    if (elenco.includes(attuale)) continue;
+    const campo = ((S.campiRelazione || {})[ramo] || []).find((c) => c.chiave === chiave) || {};
+    const stessoNome = attuale ? elenco.find((p) => nomeBase(p) === nomeBase(attuale)) : '';
+    const nuovo = stessoNome || (elenco.includes(campo.valore) ? campo.valore : '') || elenco[0] || '';
+    if (nuovo !== S.relazione.campi[chiave]) {
+      S.relazione.campi[chiave] = nuovo;
+      cambiato = true;
+    }
+  }
+  return cambiato;
 }
 
 async function ricaricaTutto() {
@@ -1664,9 +1711,16 @@ suClic('[data-azione="pulisci-log"]', () => { S.esecuzione.righe = []; disegna()
 // ---- relazione ----
 suClic('[data-scheda-relazione]', (nodo) => { S.relazione.scheda = nodo.dataset.schedaRelazione; disegna(); });
 
-function impostaCampoRelazione(nodo) {
+async function impostaCampoRelazione(nodo) {
   const chiave = nodo.dataset.campoRelazione;
   S.relazione.campi[chiave] = nodo.type === 'checkbox' ? nodo.checked : nodo.value;
+  // il frontespizio cambia lo stato del ramo e la tabella dei valori
+  // automatici: un menu si puo' ridisegnare senza perdere niente, un campo di
+  // testo no (perderebbe il cursore mentre si scrive)
+  if (chiave.startsWith('frontespizio_') && nodo.tagName === 'SELECT') {
+    await caricaRelazione();
+    disegna();
+  }
 }
 
 // 'input' copre testo e textarea, 'change' caselle e menu: scrivono lo stesso
