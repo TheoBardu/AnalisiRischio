@@ -147,6 +147,16 @@ delle vibrazioni o tutte e due. I dati si compilano in tre sezioni:
   «rumori impulsivi» del quadro sinottico, frontespizio del ramo;
 - **Dati vibrazioni** - orario di lavoro e frontespizio del ramo.
 
+Il frontespizio si sceglie in due passi: la riga con la cartella (pulsante
+per il dialogo di sistema, oppure percorso scritto a mano) e sotto il menu
+con i `.docx` trovati in quella cartella. La cartella e' un'impostazione
+dell'installazione e finisce in `config.json` come `cartella_frontespizi_rumore`
+e `cartella_frontespizi_vibrazioni`; vuota, vale la sottocartella `RUM/` o
+`VIB/` di `<cartella_modelli>/docx/frontespizi`. Il nome del file scelto,
+invece, e' un dato dell'azienda e sta con gli altri campi. Se nessun file e'
+stato scelto vale quello di `frontespizio_<ramo>` in `config.json`, che e'
+anche la voce che il menu mostra selezionata all'apertura.
+
 Tabelle DPI, gruppi omogenei ed esposizioni A(8) non si compilano: arrivano
 dai risultati dell'analisi e si vedono in sola lettura nelle tre linguette
 successive. I valori predefiniti dei campi sono quelli che i due `write_docx`

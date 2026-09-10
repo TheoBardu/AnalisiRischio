@@ -61,8 +61,10 @@ def main():
                       'vibrazioni': 'modello_relazione_vibrazioni'}
     stato_relazione = {}
     for ramo in ('rumore', 'vibrazioni'):
-        frontespizio = configurazione.percorso_frontespizio(
-            configurazione.config().get(f'frontespizio_{ramo}', ''))
+        # come app.py: il solo nome del file, nella cartella scelta del ramo
+        frontespizio = os.path.join(
+            configurazione.cartella_frontespizi(ramo),
+            os.path.basename(configurazione.config().get(f'frontespizio_{ramo}', '')))
         uscita = os.path.join(scansione.get(ramo, {}).get('output', ''),
                               generatore.NOME_DOCUMENTO[ramo])
         stato = generatore.stato(
@@ -74,6 +76,17 @@ def main():
 
     frontespizi = {ramo: configurazione.frontespizi_disponibili(ramo)
                    for ramo in ('rumore', 'vibrazioni')}
+    cartelle_frontespizi = {ramo: configurazione.cartella_frontespizi(ramo)
+                            for ramo in ('rumore', 'vibrazioni')}
+
+    # il menu del frontespizio parte dal default, come fa app.py
+    campi_relazione = {blocco: contesto_relazione.elenco_campi([blocco])
+                       for blocco in ('comuni', 'rumore', 'vibrazioni')}
+    for blocco in ('rumore', 'vibrazioni'):
+        for campo in campi_relazione[blocco]:
+            if campo['tipo'] == 'scelta':
+                campo['valore'] = os.path.basename(
+                    configurazione.config().get(f'frontespizio_{blocco}', ''))
 
     fixture = {
         'stato_iniziale': {
@@ -81,10 +94,10 @@ def main():
             'parametri_rumore': par_rumore,
             'parametri_vibrazioni': par_vib,
             'recenti': configurazione.progetti_recenti(),
-            'campi_relazione': {blocco: contesto_relazione.elenco_campi([blocco])
-                                for blocco in ('comuni', 'rumore', 'vibrazioni')},
+            'campi_relazione': campi_relazione,
             'layout_relazione': contesto_relazione.LAYOUT,
             'frontespizi': frontespizi,
+            'cartelle_frontespizi': cartelle_frontespizi,
             'relazione': stato_relazione,
             'passi': {m: elenco_passi.passi_di(m)
                       for m in ('rumore', 'vibrazioni', 'combinato')},
@@ -114,6 +127,7 @@ def main():
             'colonne_vib': contesto_relazione.COLONNE_TABELLA_VIB,
             'stato': stato_relazione,
             'frontespizi': frontespizi,
+            'cartelle_frontespizi': cartelle_frontespizi,
         },
         'salva_parametri': {'ok': True},
         # nell'anteprima il ponte e' finto: la scrittura non parte davvero

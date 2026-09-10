@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "anteprima",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["strumenti/servi_anteprima.py", "8777"],
+      "port": 8777
+    }
+  ]
+}

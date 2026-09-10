@@ -89,6 +89,10 @@ DEFAULT_CONFIG = {
     # frontespizi: una sottocartella per ramo, il nome del file si sceglie
     # dalla schermata della relazione
     'cartella_frontespizi': 'docx/frontespizi',
+    # cartelle scelte dall'interfaccia, per ramo: vuoto significa la
+    # sottocartella RUM/VIB di 'cartella_frontespizi'
+    'cartella_frontespizi_rumore': '',
+    'cartella_frontespizi_vibrazioni': '',
     'frontespizio_rumore': 'RUM/frontespizio_Relyon_RUM.docx',
     'frontespizio_vibrazioni': 'VIB/frontespizio_Relyon_VIB.docx',
     # logo aziendale: vuoto significa campo lasciato vuoto nel documento
@@ -218,8 +222,16 @@ def cartella_frontespizi(ramo=''):
 
     INPUT:  ramo - 'rumore', 'vibrazioni' oppure '' per la cartella radice
     OUTPUT: percorso assoluto (anche se la cartella non esiste)
+
+    Per un ramo vale prima la cartella scelta dall'interfaccia
+    ('cartella_frontespizi_<ramo>'); se e' vuota, la sottocartella RUM/VIB
+    della cartella radice.
     """
     cfg = config()
+    if ramo:
+        scelta = cfg.get(f'cartella_frontespizi_{ramo}', '')
+        if scelta:
+            return os.path.expanduser(scelta)
     base = cfg.get('cartella_frontespizi', '')
     if not os.path.isabs(base):
         base = os.path.join(cfg.get('cartella_modelli', ''), base)

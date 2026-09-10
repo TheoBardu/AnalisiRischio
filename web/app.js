@@ -50,7 +50,8 @@ const S = {
   recenti: [],
   campiRelazione: {},     // {comuni, rumore, vibrazioni}
   layoutRelazione: {},
-  frontespizi: {},
+  frontespizi: {},         // {rumore: [nomi .docx], vibrazioni: [...]}
+  cartelleFrontespizi: {}, // {rumore: cartella, vibrazioni: cartella}
   passiPerModalita: {},
 
   schede: null,          // {dpi, mansioni, tempi}
@@ -1241,12 +1242,22 @@ SCHERMATE.relazione = function () {
         <input type="checkbox" ${attributo}${valore ? ' checked' : ''}>${esc(c.etichetta)}</label>`;
     }
     if (c.tipo === 'scelta') {
-      // i frontespizi disponibili nella cartella del ramo, piu' quello gia'
-      // scelto se il file nel frattempo e' sparito
-      const elenco = ((S.frontespizi || {})[c.blocco] || []).slice();
+      // la cartella dei frontespizi del ramo, scelta dall'interfaccia e
+      // ricordata in config.json, e sotto i .docx che contiene, piu' quello
+      // gia' scelto se il file nel frattempo e' sparito
+      const ramo = c.blocco;
+      const cartella = (S.cartelleFrontespizi || {})[ramo] || '';
+      const rigaCartella = `<div style="display:flex;gap:6px">
+        <input class="input mono" style="font-size:11.5px;flex:1;min-width:0"
+          data-cartella-frontespizi="${esc(ramo)}" value="${esc(cartella)}" title="cartella dei frontespizi">
+        <button class="btn btn-secondary" data-azione="scegli-cartella-frontespizi" data-ramo="${esc(ramo)}"
+          title="Scegli la cartella dei frontespizi"><i class="ph ph-folder-open"></i></button></div>`;
+      const elenco = ((S.frontespizi || {})[ramo] || []).slice();
       if (valore && !elenco.includes(String(valore))) elenco.unshift(String(valore));
-      if (!elenco.length) return `<div class="mono" style="font-size:11.5px;padding:7px 0;color:${VAR_TENUE}">nessun frontespizio trovato</div>`;
-      return `<select ${base} ${attributo}>${opzioni(elenco, valore)}</select>`;
+      const menu = elenco.length
+        ? `<select ${base} ${attributo}>${opzioni(elenco, valore)}</select>`
+        : `<div class="mono" style="font-size:11.5px;padding:7px 0;color:${VAR_TENUE}">nessun frontespizio .docx nella cartella</div>`;
+      return `<div style="display:flex;flex-direction:column;gap:6px">${rigaCartella}${menu}</div>`;
     }
     if (c.tipo === 'file') {
       return `<div style="display:flex;gap:6px">
@@ -1315,6 +1326,7 @@ SCHERMATE.relazione = function () {
     const st = statoRami[ramo] || {};
     const voci = [
       ['modello', nomeBase(S.config[ramo === 'rumore' ? 'modello_relazione_rumore' : 'modello_relazione_vibrazioni'])],
+      ['cartella frontespizi', (S.cartelleFrontespizi || {})[ramo] || '—'],
       ['frontespizio', st.frontespizio_presente === false ? 'non trovato'
         : nomeBase(r.campi[`frontespizio_${ramo}`] || S.config[`frontespizio_${ramo}`] || '')],
       ['documento prodotto', st.uscita || '—'],
@@ -1477,6 +1489,7 @@ async function caricaRelazione() {
   S.relazione.dati = await chiama('relazione_dati', { campi: S.relazione.campi });
   S.relazione.stato = S.relazione.dati.stato || {};
   S.frontespizi = S.relazione.dati.frontespizi || S.frontespizi;
+  S.cartelleFrontespizi = S.relazione.dati.cartelle_frontespizi || S.cartelleFrontespizi;
 }
 
 async function ricaricaTutto() {
@@ -1660,6 +1673,28 @@ function impostaCampoRelazione(nodo) {
 // valore, quindi ripetersi su un select non fa danno
 suInput('[data-campo-relazione]', impostaCampoRelazione);
 suModifica('[data-campo-relazione]', impostaCampoRelazione);
+
+/* La cartella dei frontespizi e' un'impostazione dell'installazione, non
+   dell'azienda: si salva subito in config.json e si rilegge l'elenco dei .docx. */
+async function impostaCartellaFrontespizi(ramo, percorso) {
+  const chiave = `cartella_frontespizi_${ramo}`;
+  S.config[chiave] = percorso;
+  await chiama('salva_parametri', { config: { [chiave]: percorso } });
+  await caricaRelazione();
+  disegna();
+}
+
+suModifica('[data-cartella-frontespizi]', (nodo) =>
+  impostaCartellaFrontespizi(nodo.dataset.cartellaFrontespizi, nodo.value.trim()));
+
+suClic('[data-azione="scegli-cartella-frontespizi"]', async (nodo) => {
+  const ramo = nodo.dataset.ramo;
+  const scelta = await chiama('dialogo_cartella', {
+    percorso: (S.cartelleFrontespizi || {})[ramo] || '',
+    titolo: `Seleziona la cartella dei frontespizi (${ramo})`,
+  });
+  if (scelta.percorso) await impostaCartellaFrontespizi(ramo, scelta.percorso);
+});
 
 suClic('[data-azione="scegli-logo"]', async () => {
   const scelta = await scegliFile(S.relazione.campi.logo_azienda || S.root, 'immagini');
@@ -1873,6 +1908,7 @@ async function inizializza() {
   S.campiRelazione = stato.campi_relazione || {};
   S.layoutRelazione = stato.layout_relazione || {};
   S.frontespizi = stato.frontespizi || {};
+  S.cartelleFrontespizi = stato.cartelle_frontespizi || {};
   S.passiPerModalita = stato.passi || {};
   S.relazione.stato = stato.relazione || {};
   S.modalita = S.config.modalita || 'rumore';

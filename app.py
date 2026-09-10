@@ -137,11 +137,13 @@ class Ponte(QObject):
             'finestra': self.finestra.misure_barra,
             'relazione': {ramo: self._stato_relazione(ramo)
                           for ramo in ('rumore', 'vibrazioni')},
-            'campi_relazione': {blocco: contesto_relazione.elenco_campi([blocco])
+            'campi_relazione': {blocco: self._campi_relazione(blocco)
                                 for blocco in ('comuni', 'rumore', 'vibrazioni')},
             'layout_relazione': contesto_relazione.LAYOUT,
             'frontespizi': {ramo: configurazione.frontespizi_disponibili(ramo)
                             for ramo in ('rumore', 'vibrazioni')},
+            'cartelle_frontespizi': {ramo: configurazione.cartella_frontespizi(ramo)
+                                     for ramo in ('rumore', 'vibrazioni')},
             'passi': {m: elenco_passi.passi_di(m)
                       for m in ('rumore', 'vibrazioni', 'combinato')},
         }
@@ -198,7 +200,7 @@ class Ponte(QObject):
     def _azione_dialogo_cartella(self, dati):
         """Dialogo di sistema per la scelta di una cartella."""
         cartella = QFileDialog.getExistingDirectory(
-            self.finestra, 'Seleziona la cartella dell\'azienda',
+            self.finestra, dati.get('titolo') or 'Seleziona la cartella dell\'azienda',
             self._cartella_di_partenza(dati.get('percorso', '')))
         return {'percorso': cartella}
 
@@ -473,24 +475,47 @@ class Ponte(QObject):
     NOME_DOCUMENTO = {'rumore': 'Relazione_RUM.docx',
                       'vibrazioni': 'Relazione_VIB.docx'}
 
+    @staticmethod
+    def _frontespizio_predefinito(ramo):
+        """
+        Nome del frontespizio di default del ramo, senza cartella.
+
+        In configurazione sta come 'RUM/nome.docx': della sottocartella non si
+        tiene conto, perche' la cartella e' quella scelta dall'interfaccia.
+        """
+        nome = configurazione.config().get(f'frontespizio_{ramo}', '')
+        return nome if os.path.isabs(nome) else os.path.basename(nome)
+
+    def _campi_relazione(self, blocco):
+        """
+        Campi del blocco, con il frontespizio predefinito come valore.
+
+        Senza un valore il menu mostrerebbe la prima voce in ordine alfabetico
+        come se fosse scelta, mentre il documento userebbe il default.
+        """
+        campi = contesto_relazione.elenco_campi([blocco])
+        for campo in campi:
+            if campo['tipo'] == 'scelta' and campo['chiave'].startswith('frontespizio_'):
+                campo['valore'] = self._frontespizio_predefinito(blocco)
+        return campi
+
     def _frontespizio(self, ramo, campi=None):
         """
         Percorso del frontespizio del ramo.
 
-        Il nome puo' arrivare dal modulo della relazione (dove si sceglie fra i
-        file trovati nella cartella del ramo) oppure, se li' non c'e', dalla
-        configurazione, dove sta come 'RUM/nome.docx'.
+        Il nome arriva dal modulo della relazione (dove si sceglie fra i file
+        trovati nella cartella del ramo) oppure, se li' non c'e', dalla
+        configurazione. I nomi senza cartella si cercano nella cartella dei
+        frontespizi del ramo, quella scelta dall'interfaccia.
         """
         chiave = f'frontespizio_{ramo}'
         nome = str((campi or {}).get(chiave, '') or '').strip()
         if not nome:
-            nome = configurazione.config().get(chiave, '')
+            nome = self._frontespizio_predefinito(ramo)
         if not nome:
             return ''
         if os.path.isabs(nome):
             return nome
-        if os.sep in nome:
-            return configurazione.percorso_frontespizio(nome)
         return os.path.join(configurazione.cartella_frontespizi(ramo), nome)
 
     def _uscita(self, ramo):
@@ -527,6 +552,8 @@ class Ponte(QObject):
                       for ramo in ('rumore', 'vibrazioni')},
             'frontespizi': {ramo: configurazione.frontespizi_disponibili(ramo)
                             for ramo in ('rumore', 'vibrazioni')},
+            'cartelle_frontespizi': {ramo: configurazione.cartella_frontespizi(ramo)
+                                     for ramo in ('rumore', 'vibrazioni')},
         }
 
     def _azione_relazione_dati_file(self, dati):
