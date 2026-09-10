@@ -44,7 +44,7 @@ def main():
         t0=float(par_rumore.get('T0', 480)),
         limite=float(par_rumore.get('LIMITE_LEX8H', 87)))
     sintesi_vib = risultati_vibrazioni.sintesi(
-        vibrazioni.get('output', ''), vibrazioni.get('vr_vib', ''), par_vib)
+        vibrazioni.get('log', ''), vibrazioni.get('vr_vib', ''), par_vib)
 
     misure = risultati_rumore.misure_singole(rumore.get('vr8h_totale', ''))
     misure['medie'] = risultati_rumore.leggi_medie(

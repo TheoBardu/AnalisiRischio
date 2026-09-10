@@ -15,7 +15,7 @@ PASSI_RUMORE = [
     ('analisi_8h', 'Analisi Lex,8h'),
     ('dpi', 'Applicazione DPI (HML)'),
     ('rilievi', 'Creazione Rilievi Fonometrici'),
-    ('pdf', 'Export PDF'),
+    ('pdf', 'Export PDF degli allegati'),
 ]
 
 PASSI_VIBRAZIONI = [

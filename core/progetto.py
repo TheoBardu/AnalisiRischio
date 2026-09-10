@@ -20,6 +20,8 @@ NOMI_VIBRAZIONI = ('vibrazioni', 'vibrazione', 'vib')
 
 NOME_MISURE = 'misure'
 NOME_OUTPUT = 'output'
+NOME_LOG = 'log'
+NOME_ALLEGATI = 'allegati'
 NOME_SCHEDA = 'scheda_gruppi_dpi.xlsx'
 NOME_DATI_RELAZIONE = 'relazione_dati.json'
 
@@ -213,10 +215,10 @@ def scansiona(root):
 
     OUTPUT: dizionario con le chiavi
         root, valida, errore
-        rumore      {presente, main, misure, output, cartelle, avvisi, scheda,
-                     vr8h_totale, vr8h_riepilogo, vr8h_aggiornato}
-        vibrazioni  {presente, main, misure, output, file, scheda,
-                     misureVIB, vr_vib}
+        rumore      {presente, main, misure, output, allegati, cartelle, avvisi,
+                     scheda, vr8h_totale, vr8h_riepilogo, vr8h_aggiornato}
+        vibrazioni  {presente, main, misure, output, log, allegati, file,
+                     scheda, misureVIB, vr_vib}
         scheda      percorso di scheda_gruppi_dpi.xlsx, cercato nella root
         scheda_mancante  True se nella root non c'e'
         modalita_suggerita
@@ -258,6 +260,7 @@ def scansiona(root):
             'misure': misure,
             'output': output,
             'output_pronta': os.path.isdir(output),
+            'allegati': os.path.join(output, NOME_ALLEGATI),
             'cartelle': cartelle,
             'avvisi': avvisi,
             'vr8h_totale': os.path.join(output, 'VR8h_totale.xlsx'),
@@ -269,12 +272,16 @@ def scansiona(root):
     if ramo_vibrazioni:
         misure = os.path.join(ramo_vibrazioni, NOME_MISURE)
         output = os.path.join(ramo_vibrazioni, NOME_OUTPUT)
+        # il log del backend e il riepilogo json stanno in log/, accanto a
+        # output/, cosi' in output/ restano solo i risultati veri e propri
         esito['vibrazioni'] = {
             'presente': True,
             'main': ramo_vibrazioni,
             'misure': misure,
             'output': output,
             'output_pronta': os.path.isdir(output),
+            'log': os.path.join(ramo_vibrazioni, NOME_LOG),
+            'allegati': os.path.join(output, NOME_ALLEGATI),
             'file': _trova_file_vibrazioni(misure),
             'misureVIB': os.path.join(output, 'misureVIB.xlsx'),
             'vr_vib': _primo_esistente(

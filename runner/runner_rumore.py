@@ -26,6 +26,15 @@ NOME_TOTALE = 'VR8h_totale.xlsx'
 NOME_RIEPILOGO = 'VR8h_riepilogo.xlsx'
 NOME_AGGIORNATO = 'VR8h_totale_aggiornato.xlsx'
 NOME_SCHEDA = 'scheda_gruppi_dpi.xlsx'
+NOME_ALLEGATI = 'allegati'
+
+# fogli di calcolo esportati in PDF nella cartella allegati/, nell'ordine
+ALLEGATI_PDF = (NOME_AGGIORNATO, NOME_RILIEVI)
+
+
+def _nome_pdf(nome_xlsx):
+    """VR8h_totale_aggiornato.xlsx -> VR8h_totale_aggiornato.pdf"""
+    return os.path.splitext(nome_xlsx)[0] + '.pdf'
 
 
 def _leggi_scheda_rilievi(crea, scheda):
@@ -56,6 +65,7 @@ def costruisci_passi(cfg, stato):
     cartella_misure = cfg['misure']
     cartella_output = cfg['output']
     cartella_dati = os.path.join(cartella_misure, 'data')
+    cartella_allegati = os.path.join(cartella_output, NOME_ALLEGATI)
     scheda = cfg.get('scheda', '')
     par = cfg.get('parametri', {})
 
@@ -81,6 +91,11 @@ def costruisci_passi(cfg, stato):
         da_rimuovere = [os.path.join(cartella_output, NOME_TOTALE),
                         os.path.join(cartella_output, NOME_RIEPILOGO),
                         os.path.join(cartella_output, NOME_AGGIORNATO)]
+        # i PDF in allegati/, piu' quello che le versioni precedenti
+        # lasciavano accanto all'xlsx in output/
+        da_rimuovere += [os.path.join(cartella_allegati, _nome_pdf(nome))
+                         for nome in ALLEGATI_PDF]
+        da_rimuovere.append(os.path.join(cartella_output, _nome_pdf(NOME_AGGIORNATO)))
         if cfg.get('rileggi_misure', False):
             da_rimuovere += [os.path.join(cartella_dati, 'averaged_data.csv'),
                              os.path.join(cartella_dati, 'averaged_data.xlsx')]
@@ -163,21 +178,32 @@ def costruisci_passi(cfg, stato):
         return True
 
     def pdf():
+        """
+        Esporta in allegati/ i PDF di VR8h_totale_aggiornato.xlsx e di
+        Rilievi_Fonometrici.xlsx. Ogni export ha il proprio try: LibreOffice
+        puo' non essere installato o fallire su un solo file, e non e' un
+        motivo per invalidare un'analisi gia' completa.
+        """
         if not par.get('esporta_pdf', True):
             return 'saltato'
         esporta = carica_modulo(os.path.join(cartella_vrr, 'utility'), 'export_excel2pdf')
-        documento = os.path.join(cartella_output, NOME_AGGIORNATO)
-        if not os.path.exists(documento):
-            log(f'{NOME_AGGIORNATO} assente: export PDF saltato.', 'warning')
-            return 'saltato'
-        try:
-            esporta.esporta_pdf(documento)
-        except Exception as errore:
-            # LibreOffice puo' non essere installato: non e' un motivo per
-            # invalidare un'analisi gia' completa
-            log(f'Export PDF non riuscito: {errore}', 'error')
-            return 'saltato'
-        return True
+        os.makedirs(cartella_allegati, exist_ok=True)
+        qualcosa = False
+        for nome in ALLEGATI_PDF:
+            documento = os.path.join(cartella_output, nome)
+            if not os.path.exists(documento):
+                log(f'{nome} assente: export PDF saltato.', 'warning')
+                continue
+            try:
+                esporta.esporta_pdf(
+                    documento,
+                    pdf_output=os.path.join(cartella_allegati, _nome_pdf(nome)))
+                qualcosa = True
+            except Exception as errore:
+                log(f'Export PDF di {nome} non riuscito: {errore}', 'error')
+        if qualcosa:
+            log(f'PDF salvati in {cartella_allegati}')
+        return True if qualcosa else 'saltato'
 
     funzioni = {
         'pulizia': pulizia,

@@ -390,7 +390,7 @@ class Ponte(QObject):
         if not ramo.get('presente'):
             return {'disponibile': False, 'gruppi': [], 'conteggi': {}}
         return risultati_vibrazioni.sintesi(
-            ramo.get('output', ''), ramo.get('vr_vib', ''),
+            ramo.get('log', ''), ramo.get('vr_vib', ''),
             configurazione.parametri_vibrazioni())
 
     def _azione_leggi_attrezzature(self, _):
@@ -437,6 +437,7 @@ class Ponte(QObject):
                 'percorso_vrv': cfg['percorso_vrv'],
                 'main': ramo.get('main', ''), 'misure': ramo.get('misure', ''),
                 'output': ramo.get('output', ''),
+                'log': ramo.get('log', ''),
                 'file': ramo.get('file', {}),
                 'scheda': self.scansione.get('scheda', ''),
                 'parametri': configurazione.parametri_vibrazioni(),

@@ -2,8 +2,8 @@
 """
 Lettura dei risultati della valutazione del rischio vibrazioni.
 
-Fonte primaria: riepilogo_vibrazioni.json, che il runner scrive in output/
-subito dopo l'analisi a partire da analisi.riepilogo(). E' il modo piu' fedele,
+Fonte primaria: riepilogo_vibrazioni.json, che il runner scrive in log/
+(accanto a output/, nel ramo Vibrazioni) subito dopo l'analisi a partire da analisi.riepilogo(). E' il modo piu' fedele,
 perche' sono gli stessi numeri calcolati dal backend.
 
 Ripiego: VR_VIB.xlsx, quando in cartella c'e' il risultato di un'esecuzione
@@ -225,9 +225,9 @@ def leggi_vr_vib(percorso, parametri=None):
     return gruppi
 
 
-def leggi_json(cartella_output):
-    """Riepilogo scritto dal runner subito dopo l'analisi."""
-    percorso = os.path.join(cartella_output or '', NOME_RIEPILOGO_JSON)
+def leggi_json(cartella_log):
+    """Riepilogo scritto dal runner in log/ subito dopo l'analisi."""
+    percorso = os.path.join(cartella_log or '', NOME_RIEPILOGO_JSON)
     if not os.path.exists(percorso):
         return None
     try:
@@ -237,15 +237,17 @@ def leggi_json(cartella_output):
         return None
 
 
-def sintesi(cartella_output, percorso_vr_vib, parametri=None):
+def sintesi(cartella_log, percorso_vr_vib, parametri=None):
     """
     Struttura per la schermata 'Esposizioni A(8)'.
 
+    INPUT:  cartella_log    - cartella log/ del ramo Vibrazioni (riepilogo json)
+            percorso_vr_vib - VR_VIB.xlsx, usato come ripiego
     OUTPUT: {'gruppi': [...], 'conteggi': {'HAV': {...}, 'WBV': {...}},
              'disponibile', 'fonte'}
     """
     parametri = parametri or {}
-    dati = leggi_json(cartella_output)
+    dati = leggi_json(cartella_log)
     if dati and dati.get('gruppi'):
         gruppi, fonte = dati['gruppi'], 'json'
     else:

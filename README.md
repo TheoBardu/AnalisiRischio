@@ -48,7 +48,12 @@ usa allo stesso modo.
   errore se la somma dei `Ti` di un gruppo non e' esattamente `T0`. La verifica
   viene fatta prima, con il dettaglio per gruppo.
 - **Esegue in modo controllato**: Rumore, Vibrazioni oppure Combinato, con
-  avanzamento per passo, log filtrabile e interruzione.
+  avanzamento per passo, log filtrabile e interruzione. I risultati vanno in
+  `output/` di ciascun ramo e i PDF in `output/allegati/` (per il rumore
+  `VR8h_totale_aggiornato.pdf` e `Rilievi_Fonometrici.pdf`; per le vibrazioni
+  `misureVIB_HAV.pdf`, `misureVIB_WBV.pdf` e `VR_VIB.pdf`). Il log del backend
+  VRV e `riepilogo_vibrazioni.json` stanno invece in `Vibrazioni/log/`, cosi'
+  in `output/` restano solo i risultati.
 - **Scrive le relazioni .docx**: dati generali comuni piu' una sezione per il
   rumore e una per le vibrazioni; tabella DPI, tabella dei gruppi omogenei e
   tabella A(8) precompilate dai risultati. Si genera solo il rumore, solo le
@@ -66,7 +71,7 @@ core/
   schede.py                 scheda_gruppi_dpi.xlsx (DPI + mansioni) e verifica Ti
   input_vibrazioni.py       datiCostr.xlsx, misureHAV.xlsx, misureWBV.xlsx
   risultati_rumore.py       VR8h_riepilogo/_totale + averaged_data.csv
-  risultati_vibrazioni.py   riepilogo_vibrazioni.json, con ripiego su VR_VIB.xlsx
+  risultati_vibrazioni.py   log/riepilogo_vibrazioni.json, con ripiego su VR_VIB.xlsx
   esecuzione.py             avvio dei runner, eventi, interruzione
   backend.py                caricamento dei moduli di VRR e VRV
 runner/

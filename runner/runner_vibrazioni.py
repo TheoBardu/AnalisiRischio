@@ -8,9 +8,11 @@ reali il file sta nel ramo Rumore: qui il percorso arriva gia' risolto
 dall'interfaccia. Il secondo e' che i parametri di calcolo devono poter venire
 dalla configurazione dell'applicazione invece che da parameters.py.
 
-Al termine si scrive output/riepilogo_vibrazioni.json con i valori di
+Al termine si scrive log/riepilogo_vibrazioni.json con i valori di
 analisi.riepilogo(): e' la fonte che l'interfaccia usa per la schermata delle
-esposizioni, piu' fedele della rilettura del foglio di calcolo.
+esposizioni, piu' fedele della rilettura del foglio di calcolo. Sta in log/,
+insieme a VRV_analisiDati.log, e non in output/: cosi' in output/ restano solo
+i risultati veri e propri (fogli di calcolo, PDF, relazione).
 
 USO: python runner_vibrazioni.py <configurazione.json>
 """
@@ -31,6 +33,8 @@ from runner.protocollo import (GestoreLog, Sequenza, carica_modulo, emetti,
 NOME_MISURE_VIB = 'misureVIB.xlsx'
 NOME_VR_VIB = 'VR_VIB.xlsx'
 NOME_RIEPILOGO_JSON = 'riepilogo_vibrazioni.json'
+NOME_LOG = 'log'
+NOME_ALLEGATI = 'allegati'
 
 COLORI_CLASSE = {'BASSA': '#32cd32', 'MEDIA': '#00bfff', 'ALTA': '#b22222'}
 
@@ -105,6 +109,10 @@ def costruisci_passi(cfg, stato):
     """OUTPUT: lista di (chiave, nome, funzione) per la pipeline vibrazioni."""
     cartella_vrv = cfg['percorso_vrv']
     cartella_output = cfg['output']
+    # ripiego per una configurazione senza 'log': la cartella sta accanto a
+    # output/, nel ramo Vibrazioni
+    cartella_log = cfg.get('log') or os.path.join(
+        os.path.dirname(os.path.abspath(cartella_output)), NOME_LOG)
     file_input = cfg.get('file', {})
     scheda = cfg.get('scheda', '')
 
@@ -126,7 +134,8 @@ def costruisci_passi(cfg, stato):
         messaggi all'interfaccia va agganciato dopo, non prima.
         """
         os.makedirs(cartella_output, exist_ok=True)
-        config_vrv.configura_log(cartella_output)
+        os.makedirs(cartella_log, exist_ok=True)
+        config_vrv.configura_log(cartella_log)
         logger = logging.getLogger(config_vrv.LOGGER_NAME)
         logger.addHandler(GestoreLog())
         return True
@@ -188,8 +197,8 @@ def costruisci_passi(cfg, stato):
             log('Nessun gruppo omogeneo esposto a vibrazioni: VR_VIB.xlsx non scritto.',
                 'warning')
             return 'saltato'
-        percorso = _scrivi_riepilogo_json(stato['analisi'], cartella_output)
-        log(f'Riepilogo salvato in {os.path.basename(percorso)}')
+        percorso = _scrivi_riepilogo_json(stato['analisi'], cartella_log)
+        log(f'Riepilogo salvato in {NOME_LOG}/{os.path.basename(percorso)}')
         return True
 
     def pdf():
@@ -197,7 +206,7 @@ def costruisci_passi(cfg, stato):
             return 'saltato'
         esporta = carica_modulo(os.path.join(cartella_vrv, 'utility'),
                                 'export_excel2pdf')
-        cartella_allegati = os.path.join(cartella_output, 'allegati')
+        cartella_allegati = os.path.join(cartella_output, NOME_ALLEGATI)
         os.makedirs(cartella_allegati, exist_ok=True)
         qualcosa = False
         for percorso, nome, fogli in (
